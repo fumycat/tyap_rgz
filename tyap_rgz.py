@@ -145,7 +145,7 @@ def generate_reg_exp(x_nt):
             final_regex += (option + ' ')
         elif any(x in option for x in vn):
             # neterminal est
-            final_regex += (get_t(option) + generate_reg_exp([x for x in vn if x in option][0]) + ' + ')
+            final_regex += ('(' + get_t(option) + generate_reg_exp([x for x in vn if x in option][0]) + ')' + ' + ')
         elif all(x in vt for x in option):
             final_regex += (option + ' + ')
     final_regex = final_regex.rstrip('+ ')
@@ -157,12 +157,15 @@ def generate_reg_exp(x_nt):
     #        ' + '.join(get_t(x) for x in tr if '*' not in x) + 
     #        ')')
 
+    print(final_regex)
+    # return final_regex if len(final_regex) > 1 else final_regex[1:-1]
     return final_regex if all(['(' in final_regex, ')' in final_regex, len(final_regex) > 3]) else final_regex[1:-1]
 
 # out_of_names = generate_reg_exp(s)[1:-1]
 # print(out_of_names)
 
 def parse_reg(xs):
+    xs = xs.replace(' ', '')
     print('call parse_reg', xs)
     stack = []
 
@@ -171,13 +174,18 @@ def parse_reg(xs):
     open_or = False
     i = 0
     while i < len(xs):
-        # print('i', i, 'c', xs[i], stack)
+        print('i', i, 'c', xs[i], stack)
         if xs[i] == '(':
             open_br += 1
         elif xs[i] == ')':
             open_br -= 1
             if open_br == 0:
-                stack.append(parse_reg(pr_str))
+                if not open_or:
+                    stack.append(parse_reg(pr_str))
+                else:
+                    t = stack.pop()
+                    stack.append(['+', t, parse_reg(pr_str)])
+                    open_or = False
                 pr_str = ''
         else:
             if open_br > 0:
@@ -301,6 +309,8 @@ def gen_chains_from_gram(s_symb, maxlen):
         for e in gen_opt_gram(s_symb, maxlen):
             if not e:
                 continue
+            if e == 'λ':
+                xg_res.add('')
             if all(x in vt for x in e):
                 xg_res.add(e)
             else:
