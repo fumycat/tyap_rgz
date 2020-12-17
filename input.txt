@@ -1,4 +1,4 @@
 G({a, b, c, d}, {S, A, B}, P, S)
-S -> aA | bB
+S -> aA | bB | bA
 A -> aS
 B -> b

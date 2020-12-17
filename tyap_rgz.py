@@ -3,9 +3,12 @@ from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar
 from tkinter.ttk import Frame, Button, Label, Style, Separator, Spinbox
 
 import re
+import os
 import copy
 import itertools
 from collections.abc import Iterable
+
+# sys.stdout = open('file', 'w')
 
 rmp = lambda x: x.replace('{', '').replace('}', '').replace('(', '').replace(')', '')
 
@@ -55,6 +58,10 @@ def proc_gram(tt):
         rule = rule.replace(' ', '')
         f, t = rule.split('->')
         rules[f] = t.split('|')
+        for x in rules[f]:
+            for c in x:
+                if c not in vt+vn:
+                    raise Exception
     print('VT:', *vt, '\nVN:', *vn, '\nS:', s)
     print(rules)
     orig_rules = copy.deepcopy(rules)
@@ -83,7 +90,8 @@ def replace_lambda_rule(nt):
 def flow(x_nt, trace=[]):
     for x_rt in rules[x_nt]:
          x_rtnt = any(x in x_rt for x in vn) and [x for x in vn if x in x_rt][0]
-         # print('flow', x_rtnt, 'trace:', trace)
+         print('rule in flow', x_rt)
+         print('flow', x_rtnt, 'trace:', trace)
          if x_rtnt:
             x_rtt = x_rt.replace(x_rtnt, '')
             if x_rtnt in ''.join(x + y for x, y in trace):
@@ -97,15 +105,19 @@ def flow(x_nt, trace=[]):
                     # remove vvhod na vtoroi crug
                     # print(rules[trace[-1][1]])
                     # print(trace)
-                    rules[trace[-1][1]].remove(x_rt)                
+                    rules[x_rtnt].remove(''.join(trace[1]))
+                    # rules[trace[-1][1]].remove(x_rt)                
             else:
                 flow(x_rtnt, trace + [(x_rtt, x_rtnt)])
 
 
 
 def replace_recursion():
+    flow(s, [('', s)])
     for fr, tr in rules.items():
-        flow(fr, [('', fr)])
+        if fr != s:
+            flow(fr, [('', fr)])
+    print('rec replaced', rules)
 
 # replace_recursion()
 # print(json.dumps(rules, indent=4, sort_keys=False))
@@ -134,11 +146,17 @@ def remove_dead_prikoli():
 
 def generate_reg_exp(x_nt):
     global rules, vt, vn
+    print('gen_reg', rules, x_nt)
     # print('vn in func', vn)
     # print('x_nt', x_nt)
     # print('rules in func', rules)
     final_regex = ''
     final_regex += '('
+    if len([x for x in rules[x_nt] if '*' in x]) > 1:
+        # [:-1]
+        final_regex += ('(' + ' + '.join([y[:-1] for y in filter(lambda x: '*' in x, rules[x_nt])]) + ')*')
+        for xxr in filter(lambda x: '*' in x, rules[x_nt]):
+            rules[x_nt].remove(xxr)
     for option in sorted(rules[x_nt], key=lambda x: '*' not in x):
         # print('rabotaem', final_regex)
         if '*' in option:
@@ -170,26 +188,38 @@ def parse_reg(xs):
     stack = []
 
     open_br = 0
-    pr_str = ''
+    pr_str = []
     open_or = False
     i = 0
     while i < len(xs):
-        print('i', i, 'c', xs[i], stack)
+        print('i', i, 'c', int(open_or), open_br, pr_str ,xs[i], stack)
         if xs[i] == '(':
             open_br += 1
+            pr_str.append('')
         elif xs[i] == ')':
             open_br -= 1
-            if open_br == 0:
-                if not open_or:
-                    stack.append(parse_reg(pr_str))
-                else:
-                    t = stack.pop()
-                    stack.append(['+', t, parse_reg(pr_str)])
-                    open_or = False
-                pr_str = ''
+            t = pr_str.pop()
+            if not open_or:
+                xtt = parse_reg(t)
+                if xtt != []:
+                    stack.append(xtt)
+            else:
+                tt = stack.pop()
+                stack.append(['+', parse_reg(t), tt])
+                open_or = False
+            # if open_br == 0:
+            #     if not open_or:
+            #         stack.append(parse_reg(pr_str))
+            #     else:
+            #         t = stack.pop()
+            #         stack.append(['+', t, parse_reg(pr_str)])
+            #         open_or = False
+            #     pr_str = ''
         else:
-            if open_br > 0:
-                pr_str += xs[i]
+            if xs[i] == '+' and not open_or:
+                open_or = True
+            elif open_br > 0:
+                pr_str[-1] += xs[i]
             elif (xs[i] in vt and not open_or) and ((i+1 < len(xs) and xs[i+1] != '*') or i+1 >= len(xs)):
                 stack.append(xs[i])
             elif xs[i] in vt and not open_or and i+1 < len(xs) and xs[i+1] == '*':
@@ -207,32 +237,34 @@ def parse_reg(xs):
             elif xs[i] == '*':
                 t = stack.pop()
                 stack.append(['*', t])
-            elif xs[i] == '+' and not open_or:
-                open_or = True
             elif xs[i] == '+' and open_or:
                 raise Exception
         i += 1
         # print('stack', stack)
-
+    print('stack return')
     return stack
 
 
 def replace_stars(x_list_reg, star_iter):
-    # print('replace call', x_list_reg)
+    # print('replace stars call', x_list_reg)
     for i, o in enumerate(x_list_reg):
+        # print('->', o)
         if type(o) is list:
             if type(o[0]) is list:
                 x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
             elif o[0] == '*':
                 # if type(o[1])
-                x_list_reg[i] = o[1] * next(star_iter)
+                x_list_reg[i] = [o[1]] * next(star_iter)
             elif o[0] == '+':
+                x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
+            elif type(o[0]) is str:
                 x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
     return x_list_reg
 
 def replace_pluses(x_list_reg, plus_iter):
+    # print('replace pluses call', x_list_reg)
     for i, o in enumerate(x_list_reg):
-        if type(o) is list:
+        if type(o) is list and o != []:
             if type(o[0]) is list:
                 x_list_reg[i] = replace_pluses(x_list_reg[i], plus_iter)
             elif o[0] == '+':
@@ -252,10 +284,42 @@ def replace_pluses(x_list_reg, plus_iter):
 
 
 def gen_chains_from_parsed_reg(x_reg, maxlen):
+    print('gen chains from regex', x_reg)
+    chains = set()
+    i = 1
+    while True:
+        print('i', i)
+        new_chains = set()
+
+        for star_variation in itertools.product(* [range(i)] * str(x_reg).count('*')):
+            x_reg_nostars = replace_stars(copy.deepcopy(x_reg), iter(star_variation))
+            print('>>>>>', x_reg_nostars)
+
+            for plus_variation in itertools.product(* [range(2)] * str(x_reg_nostars).count('+')):
+                x_reg_noplus = replace_pluses(copy.deepcopy(x_reg_nostars), iter(plus_variation))
+                print(x_reg_noplus)
+
+                new_chains.add(''.join(flatten(x_reg_noplus)))
+
+        # cock
+        if any(len(x) > maxlen * 2 for x in new_chains) or all(x in chains for x in new_chains):
+            chains.update(new_chains)
+            break
+        chains.update(new_chains)
+
+        i += 1
+    return chains
+
+#print(gen_chains_from_parsed_reg([['*', ['+', ['b', 'a'], ['a', 'a']]], ['*', ['b', 'a']], ['b', 'b']], 6))
+#exit()
+
+def gen_chains_from_parsed_reg_old(x_reg, maxlen):
+    print('gen chains from regex old')
     chains = set()
     for plus_variation in itertools.product(* [range(2)] * str(x_reg).count('+')):
+        print(plus_variation)
         x_reg_noplus = replace_pluses(copy.deepcopy(x_reg), iter(plus_variation))
-        # print('=======', x_reg_noplus)
+        print('=======', x_reg_noplus)
 
         sub_chains = set()
         i = 1
@@ -268,16 +332,17 @@ def gen_chains_from_parsed_reg(x_reg, maxlen):
             for star_variation in itertools.product(* [range(i)] * str(x_reg_noplus).count('*')):
                 # print(star_variation)
                 x_reg_nostars = replace_stars(copy.deepcopy(x_reg_noplus), iter(star_variation))
-                # print(x_reg_nostars)
+                print(x_reg_nostars)
                 new_chains.add(''.join(flatten(x_reg_nostars)))
 
             if any(len(x) > maxlen for x in new_chains) or all(x in sub_chains for x in new_chains):
+                sub_chains.update(new_chains)
                 break
-            i += 1
             sub_chains.update(new_chains)
+
+            i += 1
         chains.update(sub_chains)
     return chains
-
 
 
 # with open('input.txt', encoding='utf-8') as f:
@@ -348,7 +413,7 @@ class Application(Frame):
         self.pack(fill=BOTH, expand=1)
 
         self.minl = IntVar(self.root, 0)
-        self.maxl = IntVar(self.root, 10)
+        self.maxl = IntVar(self.root, 6)
 
         self.l1 = Label(self.root, text="Введите грамматику")
         self.l1.place(x=5, y=5)
@@ -432,6 +497,7 @@ class Application(Frame):
         proc_gram(tex)
         remove_lambda_rules()
         replace_recursion()
+        # replace_recursion()
         remove_dead_prikoli()
 
         generated_reg_exp = generate_reg_exp(s)[1:-1]
@@ -449,7 +515,8 @@ class Application(Frame):
         proc_gram(tex)
         generated_chains_gram = gen_chains_from_gram(s, self.maxl.get())
         self.lb1.delete(0, 'end')
-        for x in [i for i in sorted(generated_chains_gram, key=len) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+        # , key=len
+        for x in [i for i in sorted(generated_chains_gram) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb1.insert('end', x)
 
 
@@ -464,7 +531,8 @@ class Application(Frame):
 
         generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
         self.lb2.delete(0, 'end')
-        for x in [i for i in sorted(generated_chains, key=len) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+        # , key=len
+        for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb2.insert('end', x)
 
 
@@ -479,7 +547,8 @@ class Application(Frame):
 
         generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
         self.lb3.delete(0, 'end')
-        for x in [i for i in sorted(generated_chains, key=len) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+        # , key=len
+        for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb3.insert('end', x)
 
 
