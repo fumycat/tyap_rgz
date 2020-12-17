@@ -253,7 +253,8 @@ def replace_stars(x_list_reg, star_iter):
             if type(o[0]) is list:
                 x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
             elif o[0] == '*':
-                # if type(o[1])
+                if type(o[1]) is list:
+                    x_list_reg[i][1] = replace_stars(x_list_reg[i][1], star_iter)
                 x_list_reg[i] = [o[1]] * next(star_iter)
             elif o[0] == '+':
                 x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
@@ -293,16 +294,16 @@ def gen_chains_from_parsed_reg(x_reg, maxlen):
 
         for star_variation in itertools.product(* [range(i)] * str(x_reg).count('*')):
             x_reg_nostars = replace_stars(copy.deepcopy(x_reg), iter(star_variation))
-            print('>>>>>', x_reg_nostars)
+            # print('>>>>>', x_reg_nostars)
 
             for plus_variation in itertools.product(* [range(2)] * str(x_reg_nostars).count('+')):
                 x_reg_noplus = replace_pluses(copy.deepcopy(x_reg_nostars), iter(plus_variation))
-                print(x_reg_noplus)
+                # print(x_reg_noplus)
 
                 new_chains.add(''.join(flatten(x_reg_noplus)))
 
         # cock
-        if any(len(x) > maxlen * 2 for x in new_chains) or all(x in chains for x in new_chains):
+        if any(len(x) > maxlen + 5 for x in new_chains) or all(x in chains for x in new_chains):
             chains.update(new_chains)
             break
         chains.update(new_chains)
@@ -500,7 +501,8 @@ class Application(Frame):
         # replace_recursion()
         remove_dead_prikoli()
 
-        generated_reg_exp = generate_reg_exp(s)[1:-1]
+        gre = generate_reg_exp(s)
+        generated_reg_exp = gre[1:-1] if all(['(' in gre, ')' in gre, len(gre) > 3]) else gre
         print('generate_reg_exp', generated_reg_exp)
         self.a3.configure(state='normal')
         self.a3.delete(1.0, 'end')
