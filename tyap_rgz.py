@@ -5,6 +5,7 @@ from tkinter.ttk import Frame, Button, Label, Style, Separator, Spinbox
 import re
 import os
 import copy
+import time
 import itertools
 from collections.abc import Iterable
 
@@ -65,6 +66,10 @@ def proc_gram(tt):
     print('VT:', *vt, '\nVN:', *vn, '\nS:', s)
     print(rules)
     orig_rules = copy.deepcopy(rules)
+
+def file_dump(s):
+    with open('output_{}.txt'.format(time.strftime('%X_%x').replace('/', '-').replace(':', '-')), 'w', encoding='utf-8') as f:
+        f.write(s)
 
 # Proc
 
@@ -181,6 +186,45 @@ def generate_reg_exp(x_nt):
 
 # out_of_names = generate_reg_exp(s)[1:-1]
 # print(out_of_names)
+
+def new_parse_regex(q):
+    print('call new_parse_regex')
+    q = q.replace(' ', '')
+
+    qres = {'n': '+', 'c': []}
+    stack = ''
+    i = 0
+    br = 0
+    ab = False
+
+    while i < len(q):
+        if qres['n'] == '+':
+            if ab:
+                stack += q[i]
+                if q[i] == '(':
+                    br += 1
+                elif q[i] == ')':
+                    br -= 1
+                    if br == 0:
+                        ab = False
+            elif q[i] != '+' and q[i] != '(':
+                stack += q[i]
+            elif q[i] == '(':
+                stack += q[i]
+                br += 1
+                ab = True
+            elif q[i] == '+':
+                qres['c'].append({'n': 'x', 'c': [new_parse_regex(stack)]})
+                stack = ''
+        elif qres['n'] == 'x':
+            ...
+        i += 1
+    return qres
+
+# tmp_a = new_parse_regex('a + b(c + d)* + ef')
+# import pprint
+# pprint.pprint(tmp_a)
+# exit()
 
 def parse_reg(xs):
     xs = xs.replace(' ', '')
@@ -446,6 +490,9 @@ class Application(Frame):
         self.b4 = Button(self.root, text="4 - Генерировать цепочки по вашему регулярному выражению", command=self.b4)
         self.b4.place(x=400, y=125)
 
+        self.b5 = Button(self.root, text="Запись в файл", command=self.b5)
+        self.b5.place(x=400, y=158)
+
         self.s1 = Separator(self.root, orient='horizontal')
         self.s1.place(x=5, y=285, width=790)
 
@@ -479,6 +526,9 @@ class Application(Frame):
         #     self.lb2.insert("end", "item %s" % i)
         #     self.lb3.insert("end", "item %s" % i)
 
+        self.gram_chains = []
+        self.reg_chains = []
+
         with open('input.txt', encoding='utf-8') as f:
             self.a1.insert(1.0, f.read()) # fline, *p = [x.strip() for x in f.readlines()]
 
@@ -498,7 +548,6 @@ class Application(Frame):
         proc_gram(tex)
         remove_lambda_rules()
         replace_recursion()
-        # replace_recursion()
         remove_dead_prikoli()
 
         gre = generate_reg_exp(s)
@@ -520,6 +569,7 @@ class Application(Frame):
         # , key=len
         for x in [i for i in sorted(generated_chains_gram) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb1.insert('end', x)
+            self.gram_chains.append(x)
 
 
     def b3(self):
@@ -536,6 +586,7 @@ class Application(Frame):
         # , key=len
         for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb2.insert('end', x)
+            self.reg_chains.append(x)
 
 
     def b4(self):
@@ -553,6 +604,10 @@ class Application(Frame):
         for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb3.insert('end', x)
 
+    def b5(self):
+        ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦеопчки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
+        file_dump(ox)
+        print('dump to file')
 
 
     def OnVsb(self, *args):
