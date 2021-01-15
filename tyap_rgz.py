@@ -9,6 +9,7 @@ import time
 import itertools
 import logging
 from collections.abc import Iterable
+from collections import OrderedDict
 
 
 logging.basicConfig(
@@ -16,7 +17,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt='%H:%M:%S',
     handlers=[
-        logging.FileHandler('log ' + time.strftime('%d %b %H_%M_%S') + '.txt'),
+        logging.FileHandler('logs\\log ' + time.strftime('%d %b %H_%M_%S') + '.txt'),
         logging.StreamHandler()
     ]
 )
@@ -47,6 +48,24 @@ s = str()
 # utils
 
 get_t = lambda x: ''.join(i for i in x if i in vt)
+
+
+def ftest():
+    logging.warning('ftest')
+    with open('input.txt', encoding='utf-8') as f:
+        proc_gram(f.read())
+    remove_lambda_rules()
+    logging.info('remove_lambda_rules ' + str(rules))
+    # replace_recursion()
+    # remove_dead_prikoli()
+
+    logging.info('')
+    gre = xy()
+    exit()
+
+
+
+
 
 def flatten(l):
     for el in l:
@@ -134,12 +153,8 @@ def replace_recursion():
     for fr, tr in rules.items():
         if fr != s:
             flow(fr, [('', fr)])
-    # print('rec replaced', rules)
     logging.info('recursion replaced ' + str(rules))
 
-# replace_recursion()
-# print(json.dumps(rules, indent=4, sort_keys=False))
-# print(rules)
 
 def remove_dead_prikol(dead_neterminal):
     for x_rf, x_rt in rules.items():
@@ -159,21 +174,54 @@ def remove_dead_prikoli():
             logging.warning('remove dead prikol ' + x_rf)
             remove_dead_prikol(x_rf)
 
-# remove_dead_prikoli()
-# print(rules)
+
+def solve_line(ak, av, meta_rules):
+    logging.info('call solve_line ' + ak)
+    logging.info('meta ' + str(meta_rules))
+    # ex S -> aA | bB | bA
+    # p: 
+    stars = []
+    concs = []
+    for i in av:
+        for mk, mv in meta_rules.items():
+            if mk in i:
+                logging.info(mk + ' in ' + i + ' so replacing with ' + mv)
+                i = i.replace(mk, mv)
+        if ak in i:
+            logging.info('stars append ' + '({})*'.format(i.replace(ak, '')))
+            stars.append('({})*'.format(i.replace(ak, '')))
+        else:
+            logging.info('concs append ' + i)
+            concs.append(i)
+
+
+
+    logging.info('solve_line return ' + ''.join(stars) + '+'.join(concs))
+    logging.info('')
+    return ''.join(stars) + '+'.join(concs)
+
+
+def xy():
+    global rules, vt, vn, s
+
+    meta = dict()
+
+    for k, v in sorted(rules.items(), key=lambda x: x[0], reverse=True):
+        if k != s:
+            meta[k] = solve_line(k, v, meta)
+
+    xsr = solve_line(s, rules[s], meta)
+    logging.info('xy return ' + xsr)
+    return xsr
 
 
 def generate_reg_exp(x_nt):
     logging.info('call generate_reg_exp')
     global rules, vt, vn
-    # print('gen_reg', rules, x_nt)
-    # print('vn in func', vn)
-    # print('x_nt', x_nt)
-    # print('rules in func', rules)
+
     final_regex = ''
     final_regex += '('
     if len([x for x in rules[x_nt] if '*' in x]) > 1:
-        # [:-1]
         final_regex += ('(' + ' + '.join([y[:-1] for y in filter(lambda x: '*' in x, rules[x_nt])]) + ')*')
         for xxr in filter(lambda x: '*' in x, rules[x_nt]):
             rules[x_nt].remove(xxr)
@@ -188,18 +236,9 @@ def generate_reg_exp(x_nt):
             final_regex += (option + ' + ')
     final_regex = final_regex.rstrip('+ ')
     final_regex += ')'
-    
 
-    #final_regex += ('(' + 
-    #        ' '.join(x for x in tr if '*' in x) + ' ' + 
-    #        ' + '.join(get_t(x) for x in tr if '*' not in x) + 
-    #        ')')
-
-    # return final_regex if len(final_regex) > 1 else final_regex[1:-1]
     return final_regex if all(['(' in final_regex, ')' in final_regex, len(final_regex) > 3]) else final_regex[1:-1]
 
-# out_of_names = generate_reg_exp(s)[1:-1]
-# print(out_of_names)
 
 def new_parse_regex(q):
     '''
@@ -528,12 +567,12 @@ class Application(Frame):
         self.lb3.bind("<MouseWheel>", self.OnMouseWheel)
 
         self.l5 = Label(self.root, text='Диапазон')
-        self.l5.place(y=175, x=400)
+        self.l5.place(y=195, x=400)
 
         self.spin1 = Spinbox(self.root, from_=0, to=100, textvariable=self.minl)
-        self.spin1.place(y=205, x=400, width=50)
+        self.spin1.place(y=225, x=400, width=50)
         self.spin2 = Spinbox(self.root, from_=0, to=100, textvariable=self.maxl)
-        self.spin2.place(y=205, x=455, width=50)
+        self.spin2.place(y=225, x=455, width=50)
 
         # for i in range(100):
         #     self.lb1.insert("end", "item %s" % i)
@@ -563,16 +602,19 @@ class Application(Frame):
 
         remove_lambda_rules()
         logging.info('remove_lambda_rules ' + str(rules))
-        replace_recursion()
+        
+        # replace_recursion()
         # logging.info('replace_recursion' + str(rules))
-        remove_dead_prikoli()
+        # remove_dead_prikoli()
         # logging.info('remove_dead_prikoli' + str(rules))
 
         logging.info('')
 
-        gre = generate_reg_exp(s)
-        generated_reg_exp = gre[1:-1] if all(['(' in gre, ')' in gre, len(gre) > 3]) else gre
+        # gre = generate_reg_exp(s)
+        # generated_reg_exp = gre[1:-1] if all(['(' in gre, ')' in gre, len(gre) > 3]) else gre
         
+        generated_reg_exp = xy()
+
         logging.info('reuslt generate_reg_exp ' + generated_reg_exp)
         
         self.a3.configure(state='normal')
