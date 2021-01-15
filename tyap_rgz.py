@@ -507,7 +507,7 @@ class Application(Frame):
         self.root = Tk()
         super().__init__(self.root)
         self.root.geometry("800x600+10+10")
-        self.root.title("RGZ KEK")
+        self.root.title("Жижник1337")
         self.pack(fill=BOTH, expand=1)
 
         self.minl = IntVar(self.root, 0)

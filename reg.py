@@ -1,10 +1,21 @@
 import re
 import logging
+import itertools
+
+import functools
+
+def print_calls(func):
+    @functools.wraps(func)
+    def wrapper(*func_args, **func_kwargs):
+        # print('function call ' + func.__name__ + '()')
+        argnames = func.__code__.co_varnames[:func.__code__.co_argcount] 
+        print('< ' + ', '.join( '% s = % r' % entry for entry in zip(argnames, func_args[:len(argnames)])))
+        retval = func(*func_args,**func_kwargs)
+        print('> ' + repr(retval))
+        return retval
+    return wrapper
 
 logging.basicConfig(level=logging.INFO)
-
-q = '(aa)*(ab)*(bb)'
-
 
 def get_disc(string):
     logging.info('get_disc call ' + str(string))
@@ -45,6 +56,7 @@ def parse(string):
     if len(string[1]) == 1:
         if string[1] in ['*', '+']:
             logging.error('parse invalid symbol')
+        logging.info('END ' + str(string))
         return string[1]
 
     tree = []
@@ -59,9 +71,44 @@ def parse(string):
     logging.info('END ' + str(tree))
     return tree
 
+
+# @print_calls
+def build(regular, dim):
+    if type(regular[1]) in (list, tuple):
+        if regular[0] == '+':
+            return [build(x, dim) for x in regular[1]]
+        elif regular[0] == 'x':
+            return [''.join(y) for y in itertools.product(*[build(x, dim) for x in regular[1]])]
+        elif regular[0] == '*':
+            bts = build(regular[1], dim)
+
+            # always list tho?
+            btl = [x for x in bts]
+            i2 = 1
+            while len(btl[-1]) < dim[1]:
+                t = []
+                for i in range(len(bts) * i2):
+                    for e in bts:
+                        t.append(btl[-(i+1)] + e)
+                btl += t
+                i2 *= 2
+            return [''] + btl
+        else:
+            logging.error('build invalid regular[0]')
+    else:
+        return regular[1]
+
+
 if __name__ == '__main__':
     out = parse(('+', 'a+b(c+d)*+ef'))
     logging.info(str(out))
+    
+    from pprint import pprint
+    pprint(out)
+    
+    built = build(('+', out), (0, 3))
+    for z in itertools.product(*built):
+        print(''.join(z))
 
     # logging.info(str(get_disc('b(c+d)*')))
 
