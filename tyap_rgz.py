@@ -7,9 +7,19 @@ import os
 import copy
 import time
 import itertools
+import logging
 from collections.abc import Iterable
 
-# sys.stdout = open('file', 'w')
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt='%H:%M:%S',
+    handlers=[
+        logging.FileHandler('log ' + time.strftime('%d %b %H_%M_%S') + '.txt'),
+        logging.StreamHandler()
+    ]
+)
 
 rmp = lambda x: x.replace('{', '').replace('}', '').replace('(', '').replace(')', '')
 
@@ -34,11 +44,6 @@ s = str()
 #     rules[f] = t.split('|')
 
 
-
-
-# checks
-pass # TODO
-
 # utils
 
 get_t = lambda x: ''.join(i for i in x if i in vt)
@@ -61,14 +66,14 @@ def proc_gram(tt):
         rules[f] = t.split('|')
         for x in rules[f]:
             for c in x:
-                if c not in vt+vn:
+                if c not in vt+vn+['λ']:
                     raise Exception
-    print('VT:', *vt, '\nVN:', *vn, '\nS:', s)
-    print(rules)
+    logging.info('VT:' + ' '.join(vt) + ' VN:' + ' '.join(vn) + ' S:' + s)
+    logging.info('proc_gram ' + str(rules))
     orig_rules = copy.deepcopy(rules)
 
 def file_dump(s):
-    with open('output_{}.txt'.format(time.strftime('%X_%x').replace('/', '-').replace(':', '-')), 'w', encoding='utf-8') as f:
+    with open('output {}.txt'.format(time.strftime('%d %b %H_%M_%S')), 'w', encoding='utf-8') as f:
         f.write(s)
 
 # Proc
@@ -89,40 +94,48 @@ def replace_lambda_rule(nt):
                     rules[k].append(rule_to.replace(nt, ''))
 
 
-# remove_lambda_rules()
-# print(rules, '\n')
-
 def flow(x_nt, trace=[]):
     for x_rt in rules[x_nt]:
-         x_rtnt = any(x in x_rt for x in vn) and [x for x in vn if x in x_rt][0]
-         print('rule in flow', x_rt)
-         print('flow', x_rtnt, 'trace:', trace)
-         if x_rtnt:
+        x_rtnt = any(x in x_rt for x in vn) and [x for x in vn if x in x_rt][0]
+        logging.info('flow')
+        logging.info('x_rt ' + x_rt)
+        logging.info('trace ' + str(trace))
+        logging.info('x_rtnt ' + str(x_rtnt))
+        if x_rtnt:
             x_rtt = x_rt.replace(x_rtnt, '')
             if x_rtnt in ''.join(x + y for x, y in trace):
                 # rec
                 #print('they might tho')
                 #print(x_rtnt == trace[0][1], x_rtnt, trace[0][1])
                 if x_rtnt == trace[0][1]:
-                    print('flow YEP')
-                    # proc here
+                    logging.info('flow yep')
+                    
                     rules[x_rtnt].append('(' + ''.join(x[0] for x in trace) + x_rtt + ')*')
-                    # remove vvhod na vtoroi crug
-                    # print(rules[trace[-1][1]])
-                    # print(trace)
                     rules[x_rtnt].remove(''.join(trace[1]))
-                    # rules[trace[-1][1]].remove(x_rt)                
+                    
+                    logging.info('added ' + '(' + ''.join(x[0] for x in trace) + x_rtt + ')*' + ' to ' + x_rtnt)
+                    logging.info('removed ' + ''.join(trace[1]) + ' from ' + x_rtnt)
+                    logging.info('rules ' + str(rules))
             else:
                 flow(x_rtnt, trace + [(x_rtt, x_rtnt)])
+        logging.info('')
 
 
 
 def replace_recursion():
+    # edge
+    for rt in rules[s]:
+        if s in rt:
+            tmp_x = rt.replace(s, '')
+            rules[s].append(f'({tmp_x})*')
+            rules[s].remove(rt)
+    # else
     flow(s, [('', s)])
     for fr, tr in rules.items():
         if fr != s:
             flow(fr, [('', fr)])
-    print('rec replaced', rules)
+    # print('rec replaced', rules)
+    logging.info('recursion replaced ' + str(rules))
 
 # replace_recursion()
 # print(json.dumps(rules, indent=4, sort_keys=False))
@@ -142,7 +155,8 @@ def remove_dead_prikol(dead_neterminal):
 def remove_dead_prikoli():
     for x_rf, x_rt in rules.items():
         if not x_rt:
-            print('call', x_rf)
+            # print('call', x_rf)
+            logging.warning('remove dead prikol ' + x_rf)
             remove_dead_prikol(x_rf)
 
 # remove_dead_prikoli()
@@ -150,8 +164,9 @@ def remove_dead_prikoli():
 
 
 def generate_reg_exp(x_nt):
+    logging.info('call generate_reg_exp')
     global rules, vt, vn
-    print('gen_reg', rules, x_nt)
+    # print('gen_reg', rules, x_nt)
     # print('vn in func', vn)
     # print('x_nt', x_nt)
     # print('rules in func', rules)
@@ -163,7 +178,7 @@ def generate_reg_exp(x_nt):
         for xxr in filter(lambda x: '*' in x, rules[x_nt]):
             rules[x_nt].remove(xxr)
     for option in sorted(rules[x_nt], key=lambda x: '*' not in x):
-        # print('rabotaem', final_regex)
+        logging.info('in generate_reg_exp ' + final_regex)
         if '*' in option:
             final_regex += (option + ' ')
         elif any(x in option for x in vn):
@@ -180,7 +195,6 @@ def generate_reg_exp(x_nt):
     #        ' + '.join(get_t(x) for x in tr if '*' not in x) + 
     #        ')')
 
-    print(final_regex)
     # return final_regex if len(final_regex) > 1 else final_regex[1:-1]
     return final_regex if all(['(' in final_regex, ')' in final_regex, len(final_regex) > 3]) else final_regex[1:-1]
 
@@ -188,7 +202,11 @@ def generate_reg_exp(x_nt):
 # print(out_of_names)
 
 def new_parse_regex(q):
-    print('call new_parse_regex')
+    '''
+    ?
+    '''
+    logging.info('call new_parse_regex')
+    # print('call new_parse_regex')
     q = q.replace(' ', '')
 
     qres = {'n': '+', 'c': []}
@@ -221,14 +239,11 @@ def new_parse_regex(q):
         i += 1
     return qres
 
-# tmp_a = new_parse_regex('a + b(c + d)* + ef')
-# import pprint
-# pprint.pprint(tmp_a)
-# exit()
 
 def parse_reg(xs):
+    logging.info('call parse_reg ' + str(xs))
     xs = xs.replace(' ', '')
-    print('call parse_reg', xs)
+    # print('call parse_reg', xs)
     stack = []
 
     open_br = 0
@@ -236,7 +251,7 @@ def parse_reg(xs):
     open_or = False
     i = 0
     while i < len(xs):
-        print('i', i, 'c', int(open_or), open_br, pr_str ,xs[i], stack)
+        # print('i', i, 'c', int(open_or), open_br, pr_str ,xs[i], stack)
         if xs[i] == '(':
             open_br += 1
             pr_str.append('')
@@ -285,7 +300,7 @@ def parse_reg(xs):
                 raise Exception
         i += 1
         # print('stack', stack)
-    print('stack return')
+    # print('stack return')
     return stack
 
 
@@ -329,11 +344,12 @@ def replace_pluses(x_list_reg, plus_iter):
 
 
 def gen_chains_from_parsed_reg(x_reg, maxlen):
-    print('gen chains from regex', x_reg)
+    logging.info('call gen_chains_from_parsed_reg')
+    # print('gen chains from regex', x_reg)
     chains = set()
     i = 1
     while True:
-        print('i', i)
+        logging.info('i ' + str(i))
         new_chains = set()
 
         for star_variation in itertools.product(* [range(i)] * str(x_reg).count('*')):
@@ -358,7 +374,9 @@ def gen_chains_from_parsed_reg(x_reg, maxlen):
 #print(gen_chains_from_parsed_reg([['*', ['+', ['b', 'a'], ['a', 'a']]], ['*', ['b', 'a']], ['b', 'b']], 6))
 #exit()
 
+'''
 def gen_chains_from_parsed_reg_old(x_reg, maxlen):
+    print()
     print('gen chains from regex old')
     chains = set()
     for plus_variation in itertools.product(* [range(2)] * str(x_reg).count('+')):
@@ -388,7 +406,7 @@ def gen_chains_from_parsed_reg_old(x_reg, maxlen):
             i += 1
         chains.update(sub_chains)
     return chains
-
+'''
 
 # with open('input.txt', encoding='utf-8') as f:
 #     proc_gram(f.read())
@@ -429,10 +447,6 @@ def gen_chains_from_gram(s_symb, maxlen):
             break
         s_symb = to_proc
     return [x for x in xg_res if len(x) <= maxlen]
-
-
-
-
 
 
 # xd = parse_reg(out_of_names)
@@ -546,13 +560,21 @@ class Application(Frame):
     def b1(self):
         tex = self.a1.get(1.0, 'end')
         proc_gram(tex)
+
         remove_lambda_rules()
+        logging.info('remove_lambda_rules ' + str(rules))
         replace_recursion()
+        # logging.info('replace_recursion' + str(rules))
         remove_dead_prikoli()
+        # logging.info('remove_dead_prikoli' + str(rules))
+
+        logging.info('')
 
         gre = generate_reg_exp(s)
         generated_reg_exp = gre[1:-1] if all(['(' in gre, ')' in gre, len(gre) > 3]) else gre
-        print('generate_reg_exp', generated_reg_exp)
+        
+        logging.info('reuslt generate_reg_exp ' + generated_reg_exp)
+        
         self.a3.configure(state='normal')
         self.a3.delete(1.0, 'end')
         self.a3.insert(1.0, generated_reg_exp)
@@ -579,11 +601,11 @@ class Application(Frame):
         if not tex or (len(tex) == 1 and tex not in vt):
             return
         xd = parse_reg(tex)
-        print('parsed reg', xd)
+        logging.info('parsed reg ' + str(xd))
 
         generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
         self.lb2.delete(0, 'end')
-        # , key=len
+
         for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb2.insert('end', x)
             self.reg_chains.append(x)
@@ -596,7 +618,7 @@ class Application(Frame):
         if not tex or (len(tex) == 1 and tex not in vt):
             return
         xd = parse_reg(tex)
-        print('parsed reg', xd)
+        logging.info('parsed reg ' + str(xd))
 
         generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
         self.lb3.delete(0, 'end')
@@ -607,7 +629,7 @@ class Application(Frame):
     def b5(self):
         ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦеопчки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
         file_dump(ox)
-        print('dump to file')
+        logging.info('dump to file')
 
 
     def OnVsb(self, *args):
