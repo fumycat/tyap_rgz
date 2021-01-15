@@ -98,6 +98,9 @@ def build(regular, dim):
     else:
         return regular[1]
 
+def generate(built, minlen, maxlen):
+    built = build(('+', out), (None, maxlen))
+    return [x for x in [''.join(z) for z in itertools.product(*built)] if len(x) >= minlen and len(x) <= maxlen]
 
 if __name__ == '__main__':
     out = parse(('+', 'a+b(c+d)*+ef'))
@@ -106,9 +109,7 @@ if __name__ == '__main__':
     from pprint import pprint
     pprint(out)
     
-    built = build(('+', out), (0, 3))
-    for z in itertools.product(*built):
-        print(''.join(z))
+    print(generate(out, 0, 7))
 
     # logging.info(str(get_disc('b(c+d)*')))
 

@@ -8,14 +8,24 @@ import copy
 import time
 import itertools
 import logging
+import functools
 from collections.abc import Iterable
 from collections import OrderedDict
 
+def print_calls(func):
+    @functools.wraps(func)
+    def wrapper(*func_args, **func_kwargs):
+        # print('function call ' + func.__name__ + '()')
+        argnames = func.__code__.co_varnames[:func.__code__.co_argcount] 
+        logging.info('< ' + ', '.join( '% s = % r' % entry for entry in zip(argnames, func_args[:len(argnames)])))
+        retval = func(*func_args,**func_kwargs)
+        logging.info('> ' + repr(retval))
+        return retval
+    return wrapper
 
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt='%H:%M:%S',
+    format="%(levelname)s %(message)s",
     handlers=[
         logging.FileHandler('logs\\log ' + time.strftime('%d %b %H_%M_%S') + '.txt'),
         logging.StreamHandler()
@@ -488,6 +498,104 @@ def gen_chains_from_gram(s_symb, maxlen):
     return [x for x in xg_res if len(x) <= maxlen]
 
 
+def get_disc(string):
+    logging.info('get_disc call ' + str(string))
+    result = []
+
+    p = 0
+    stack = ''
+    for i, c in enumerate(string[1]):
+        if p > 0:
+            if c == ')':
+                p -= 1
+                if p == 0:
+                    if i + 1 < len(string[1]) and string[1][i+1] == '*':
+                        result.append(('*', stack))
+                    else:
+                        result.append(('+', stack))
+                    stack = ''
+            elif c == '(':
+                p += 1
+            else:
+                stack += c
+        else:
+            if c == '(':
+                p += 1
+            elif c == ')':
+                logging.error('get_disc invalid )')
+            elif c == '*':
+                pass
+            else:
+                result.append(('+', c))
+
+    logging.info('get_disc return ' + str(result))
+    return result
+
+
+def parse(string):
+    logging.info('TRACE ' + str(string))
+    if len(string[1]) == 1:
+        if string[1] in ['*', '+']:
+            logging.error('parse invalid symbol')
+        logging.info('END ' + str(string))
+        return string[1]
+
+    tree = []
+    if string[0] == '+':
+        tree = [('x', parse(('x', x))) for x in re.split('\+(?![^\(]*\))', string[1])]
+    elif string[0] == 'x':
+        tree = [(s, parse((s, x))) for s, x in get_disc(string)]
+    elif string[0] == '*':
+        tree = ('+', parse(('+', string[1])))
+
+
+    logging.info('END ' + str(tree))
+    return tree
+
+
+# @print_calls
+def build(regular, dim):
+    if type(regular[1]) in (list, tuple):
+        if regular[0] == '+':
+            tt = [build(x, dim) for x in regular[1]]
+            if type(tt) is list and len(tt) == 1 and type(tt[0]) is list:
+                return tt[0]
+            else:
+                return tt 
+        elif regular[0] == 'x':
+            return [''.join(y) for y in itertools.product(*[build(x, dim) for x in regular[1]])]
+        elif regular[0] == '*':
+            bts = build(regular[1], dim)
+            # print("^-^ HERE", regular, bts)
+            # always list tho?
+            btl = [x for x in bts]
+            #if type(btl[0]) is list:
+            #    btl = btl[0] 
+            i2 = 1
+            while len(btl[-1]) < dim[1] and i2 < 4:
+                t = []
+                for i in range(len(bts) * i2):
+                    for e in bts:
+                        t.append(btl[-(i+1)] + e)
+                btl += t
+                i2 *= 2
+                logging.info(str(i2) + ' ' +str(btl))
+            return [''] + btl
+        else:
+            logging.error('build invalid regular[0]')
+    else:
+        return regular[1]
+
+def generate(built, minlen, maxlen):
+    built = list(set(build(('+', built), (None, maxlen))))
+    logging.info('generate built ' + repr(built))
+    if all(type(i) is str for i in built):
+        built.sort()
+        return [x for x in built if len(x) >= minlen and len(x) <= maxlen]
+    else:
+        return [x for x in soretd([''.join(z) for z in itertools.product(*built)]) if len(x) >= minlen and len(x) <= maxlen]
+
+
 # xd = parse_reg(out_of_names)
 # print('parsed reg', xd, '\n')
 
@@ -639,16 +747,20 @@ class Application(Frame):
     def b3(self):
         if self.maxl.get() < self.minl.get():
             return
-        tex = self.a3.get(1.0, 'end')
+        tex = self.a3.get(1.0, 'end').strip()
         if not tex or (len(tex) == 1 and tex not in vt):
             return
-        xd = parse_reg(tex)
+        # xd = parse_reg(tex)
+        xd = parse(('+', tex))
         logging.info('parsed reg ' + str(xd))
 
-        generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
-        self.lb2.delete(0, 'end')
+        # generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
+        self.lb2.delete(0, 'end') # purge list
 
-        for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+        #for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+        #    self.lb2.insert('end', x)
+        #    self.reg_chains.append(x)
+        for x in generate(xd, self.minl.get(), self.maxl.get()):
             self.lb2.insert('end', x)
             self.reg_chains.append(x)
 
@@ -656,17 +768,21 @@ class Application(Frame):
     def b4(self):
         if self.maxl.get() < self.minl.get():
             return
-        tex = self.a2.get(1.0, 'end')
+        tex = self.a2.get(1.0, 'end').strip()
         if not tex or (len(tex) == 1 and tex not in vt):
             return
-        xd = parse_reg(tex)
+        # xd = parse_reg(tex)
+        xd = parse(('+', tex)) 
         logging.info('parsed reg ' + str(xd))
 
         generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
         self.lb3.delete(0, 'end')
-        # , key=len
-        for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+
+        for x in generate(xd, self.minl.get(), self.maxl.get()):
             self.lb3.insert('end', x)
+
+        #for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
+        #    self.lb3.insert('end', x)
 
     def b5(self):
         ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦеопчки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
