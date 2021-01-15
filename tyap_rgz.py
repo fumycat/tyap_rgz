@@ -553,9 +553,9 @@ def parse(string):
     return tree
 
 
-# @print_calls
+@print_calls
 def build(regular, dim):
-    if type(regular[1]) in (list, tuple):
+    if type(regular[1]) in (list, tuple) or (type(regular[1]) is str and regular[0] == '*'):
         if regular[0] == '+':
             tt = [build(x, dim) for x in regular[1]]
             if type(tt) is list and len(tt) == 1 and type(tt[0]) is list:
@@ -565,20 +565,26 @@ def build(regular, dim):
         elif regular[0] == 'x':
             return [''.join(y) for y in itertools.product(*[build(x, dim) for x in regular[1]])]
         elif regular[0] == '*':
-            bts = build(regular[1], dim)
+            if type(regular[1]) is not str:
+                bts = build(regular[1], dim)
+            else:
+                bts = [regular[1]]
+
             # print("^-^ HERE", regular, bts)
             # always list tho?
+            logging.info('bts ' + repr(bts))
+
             btl = [x for x in bts]
             #if type(btl[0]) is list:
             #    btl = btl[0] 
             i2 = 1
-            while len(btl[-1]) < dim[1] and i2 < 4:
+            while len(btl[-1]) < dim[1]:
                 t = []
                 for i in range(len(bts) * i2):
                     for e in bts:
                         t.append(btl[-(i+1)] + e)
                 btl += t
-                i2 *= 2
+                i2 **= 2
                 logging.info(str(i2) + ' ' +str(btl))
             return [''] + btl
         else:
