@@ -225,7 +225,7 @@ def class_gen(tree_obj, burn):
         z = []
         for child in tree_obj.childs:
             z += class_gen(child, burn)
-        logging.info('class_gen(pNode) return ' + str(z))
+        # logging.info('class_gen(pNode) return ' + str(z))
         return z
     elif type(tree_obj) is xNode:
         # ['b'], ['', 'c', 'd', 'cc', 'cd', ...] -> ['b', 'bc' ,'bd', ...]
@@ -234,7 +234,7 @@ def class_gen(tree_obj, burn):
         # logging.info('z ' + str(z)) # <----
         for t in itertools.product(*z):
             y.append(''.join(t))
-        logging.info('class_gen(xNode) return ' + str(y))
+        # logging.info('class_gen(xNode) return ' + str(y))
         return y
 
     elif type(tree_obj) is str:

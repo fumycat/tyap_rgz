@@ -896,7 +896,7 @@ class Application(Frame):
 
 
     def b5(self):
-        ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦеопчки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
+        ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦепочки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
         file_dump(ox)
         logging.info('dump to file')
 
