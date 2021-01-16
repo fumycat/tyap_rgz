@@ -188,18 +188,17 @@ def remove_dead_prikoli():
 def solve_line(ak, av, meta_rules):
     logging.info('call solve_line ' + ak)
     logging.info('meta ' + str(meta_rules))
-    # ex S -> aA | bB | bA
-    # p: 
+
     stars = []
     concs = []
     for i in av:
         for mk, mv in meta_rules.items():
             if mk in i:
-                logging.info(mk + ' in ' + i + ' so replacing with ' + mv)
+                logging.info(repr(mk) + ' in ' + repr(i) + ' so replacing with ' + repr(mv))
                 i = i.replace(mk, mv)
         if ak in i:
-            logging.info('stars append ' + '({})*'.format(i.replace(ak, '')))
-            stars.append('({})*'.format(i.replace(ak, '')))
+            logging.info('stars append ' + i.replace(ak, ''))
+            stars.append(i.replace(ak, ''))
         else:
             logging.info('concs append ' + i)
             concs.append(i)
@@ -208,7 +207,15 @@ def solve_line(ak, av, meta_rules):
 
     logging.info('solve_line return ' + ''.join(stars) + '+'.join(concs))
     logging.info('')
-    return ''.join(stars) + '+'.join(concs)
+
+    rv = ''
+    if len(stars) > 0:
+        rv += '('
+    rv += ''.join('+'.join(stars))
+    if len(stars) > 0:
+        rv += ')*'
+    rv += '+'.join(concs)
+    return rv
 
 
 def xy():
@@ -569,7 +576,13 @@ def build(regular, dim):
                 bts = build(regular[1], dim)
             else:
                 bts = [regular[1]]
-
+            logging.info('bts ' + repr(bts))
+            xts = []
+            for e in bts:
+                if type(e) is list and len(e) == 1:
+                    xts.append(e[0])
+            if xts:
+                bts = xts
             # print("^-^ HERE", regular, bts)
             # always list tho?
             logging.info('bts ' + repr(bts))
