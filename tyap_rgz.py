@@ -1,5 +1,4 @@
-# λ
-from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar
+from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar, messagebox
 from tkinter.ttk import Frame, Button, Label, Style, Separator, Spinbox
 
 import re
@@ -8,20 +7,7 @@ import copy
 import time
 import itertools
 import logging
-import functools
-from collections.abc import Iterable
-from collections import OrderedDict
 
-def print_calls(func):
-    @functools.wraps(func)
-    def wrapper(*func_args, **func_kwargs):
-        # print('function call ' + func.__name__ + '()')
-        argnames = func.__code__.co_varnames[:func.__code__.co_argcount] 
-        logging.info('< ' + ', '.join( '% s = % r' % entry for entry in zip(argnames, func_args[:len(argnames)])))
-        retval = func(*func_args,**func_kwargs)
-        logging.info('> ' + repr(retval))
-        return retval
-    return wrapper
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,8 +20,6 @@ logging.basicConfig(
 
 rmp = lambda x: x.replace('{', '').replace('}', '').replace('(', '').replace(')', '')
 
-#with open('input.txt', encoding='utf-8') as f:
-#    fline, *p = [x.strip() for x in f.readlines()]
 
 orig_rules = dict()
 rules = dict()
@@ -43,46 +27,227 @@ vt = list()
 vn = list()
 s = str()
 
-# vt, vn, _, s = map(str.strip, map(rmp, re.split(',(?![^{}]*})', fline[1:])))
-# vt, vn = [x.strip() for x in vt.split(',')], [x.strip() for x in vn.split(',')]
 
-
-# pravo = True
-
-# for rule in p:
-#     rule = rule.replace(' ', '')
-#     f, t = rule.split('->')
-#     rules[f] = t.split('|')
-
-
-# utils
-
-get_t = lambda x: ''.join(i for i in x if i in vt)
-
-
-def ftest():
-    logging.warning('ftest')
-    with open('input.txt', encoding='utf-8') as f:
-        proc_gram(f.read())
-    remove_lambda_rules()
-    logging.info('remove_lambda_rules ' + str(rules))
-    # replace_recursion()
-    # remove_dead_prikoli()
-
-    logging.info('')
-    gre = xy()
-    exit()
-
-
-
-
-
-def flatten(l):
-    for el in l:
-        if isinstance(el, Iterable) and not isinstance(el, (str, bytes)):
-            yield from flatten(el)
+def get_conc(string):
+    logging.info('get_conc call ' + str(string))
+    result = []
+    
+    p = 0
+    stack = ''
+    for i, c in enumerate(string):
+        if p > 0:
+            if c == ')':
+                p -= 1
+                if p > 0:
+                    stack += c
+                else:
+                    stack += c
+            elif c == '(':
+                p += 1
+                stack += c
+            else:
+                stack += c
         else:
-            yield el
+            if c == '(':
+                p += 1
+                stack += c
+            elif c == ')':
+                logging.error('invalid ) in get_conc')
+            elif c == '+':
+                result.append(stack)
+                stack = ''
+            else:
+                stack += c
+
+    result.append(stack)
+
+    logging.info('get_conc return ' + str(result))
+    return result
+
+
+def get_disc(string):
+    logging.info('get_disc call ' + str(string))
+    result = []
+
+    p = 0
+    stack = ''
+    for i, c in enumerate(string):
+        if p > 0:
+            if c == ')':
+                p -= 1
+                stack += c
+                
+                if p == 0:
+                    if i + 1 < len(string) and string[i+1] == '*':
+                        result.append([True, stack])
+                    else:
+                        result.append([False, stack])
+                    stack = ''
+                else:
+                    ...
+            elif c == '(':
+                p += 1
+                stack += c
+            else:
+                stack += c
+        else:
+            if c == '(':
+                p += 1
+                stack += c
+            elif c == ')':
+                logging.error('invalid ) in get_disc')
+            elif c == '*':
+                pass
+            else:
+                result.append([False, c])
+
+    logging.info('get_disc return ' + str(result))
+    return result
+
+
+def unp(string):
+
+    def check(expression):  
+        open_tup = tuple('(') 
+        close_tup = tuple(')') 
+        map = dict(zip(open_tup, close_tup)) 
+        queue = [] 
+      
+        for i in expression: 
+            if i in open_tup: 
+                queue.append(map[i]) 
+            elif i in close_tup: 
+                if not queue or i != queue.pop(): 
+                    return False
+        if not queue: 
+            return True
+        else: 
+            return False
+
+    if string.startswith('(') and string.endswith(')'):
+        if check(string[1:-1]):
+            return string[1:-1]
+    return string
+
+class sNode(object):
+    def __init__(self, string):
+        # logging.info('sNode ' + string)
+        self.string = string
+        self.string = unp(self.string)
+        self.childs = []
+        self.parse()
+
+    def __str__(self):
+        return f'[*][{self.string}] <' + ', '.join(str(x) for x in self.childs) + '>'
+
+    def parse(self):
+        if any(x in self.string for x in ['+', '*', '(', ')']):
+            self.childs = [pNode(self.string)]
+        else:
+            self.childs = [self.string]
+        
+
+class xNode(object):
+    def __init__(self, string):
+        # logging.info('xNode ' + string)
+        self.string = string
+        self.string = unp(self.string)
+        self.childs = []
+        self.parse()
+
+    def __str__(self):
+        return f'[x][{self.string}] <' + ', '.join(str(x) for x in self.childs) + '>'
+
+    def parse(self):
+        if any(x in self.string for x in ['+', '*', '(', ')']):
+            for is_star, node in get_disc(self.string):
+                if is_star:
+                    self.childs.append(sNode(node))
+                else:
+                    self.childs.append(pNode(node))
+        else:
+            self.childs = [self.string]
+        
+
+class pNode(object):
+    def __init__(self, string):
+        # logging.info('pNode ' + string)
+        self.string = string
+        self.string = unp(self.string)
+        self.childs = []
+        self.parse()
+
+    def __str__(self):
+        return f'[+][{self.string}] <' + ', '.join(str(x) for x in self.childs) + '>'
+
+    def parse(self):
+        if any(x in self.string for x in ['+', '*', '(', ')']):
+            self.childs = [xNode(x) for x in get_conc(self.string)]
+        else:
+            self.childs = [self.string]
+
+
+def normal_output(node_obj, deep=0):
+
+    def normal_t(x_obj):
+        if type(x_obj) is xNode:
+            return 'x'
+        elif type(x_obj) is pNode:
+            return '+'
+        elif type(x_obj) is sNode:
+            return '*'
+
+    for child in node_obj.childs:
+        if type(child) is str:
+            print('  ' * deep + normal_t(node_obj) + ' ' + child)
+        else:
+            normal_output(child, deep + 1)
+
+
+def class_gen(tree_obj, burn):
+    logging.info('call class_gen ' + str(tree_obj))
+    if type(tree_obj) is sNode:
+        # ['c', 'd'] -> ['c', 'd', 'cd', 'dc', 'cc', 'dd', ...]
+        # ['ab'] -> ['ab', 'abab', ...]
+        z = []
+        for child in tree_obj.childs:
+            z += class_gen(child, burn)
+        if len(z) == 1:
+            package = ['']
+            for i in range(burn + 1):
+                package += [z[0] * i]
+            logging.info('class_gen(sNode) return ' + str(package))
+            return package
+        else:
+            # STRING FACTORY
+            package = ['']
+            for i in range(burn):
+                package += [''.join(x) for x in itertools.product(z, repeat=i)]
+            logging.info('class_gen(sNode) return ' + str(package))
+            return package
+            # return ['', 'c', 'd', 'cc', 'dd', 'cd', 'dc']
+    elif type(tree_obj) is pNode:
+        # ['a'], ['b', 'bc' ,'bd', ...], ['ef'] -> ['a', 'b', 'bc' ,'bd', ..., 'ef']
+        z = []
+        for child in tree_obj.childs:
+            z += class_gen(child, burn)
+        logging.info('class_gen(pNode) return ' + str(z))
+        return z
+    elif type(tree_obj) is xNode:
+        # ['b'], ['', 'c', 'd', 'cc', 'cd', ...] -> ['b', 'bc' ,'bd', ...]
+        z = [class_gen(child, burn) for child in tree_obj.childs]
+        y = []
+        # logging.info('z ' + str(z)) # <----
+        for t in itertools.product(*z):
+            y.append(''.join(t))
+        logging.info('class_gen(xNode) return ' + str(y))
+        return y
+
+    elif type(tree_obj) is str:
+        # 'a' -> ['a']
+        logging.info('class_gen(leaf) return ' + tree_obj)
+        return [tree_obj]
+
 
 def proc_gram(tt):
     global vt, vn, rules, orig_rules, s
@@ -101,114 +266,67 @@ def proc_gram(tt):
     logging.info('proc_gram ' + str(rules))
     orig_rules = copy.deepcopy(rules)
 
+
 def file_dump(s):
     with open('output {}.txt'.format(time.strftime('%d %b %H_%M_%S')), 'w', encoding='utf-8') as f:
         f.write(s)
 
-# Proc
-
-def remove_lambda_rules():
-    for k, v in rules.items():
-        if 'λ' in v:
-            replace_lambda_rule(k)
-            if k != s:
-                rules[k].remove('λ')
-
-def replace_lambda_rule(nt):
-    if nt == s:
-        return
-    for k, v in rules.items():
-        for rule_to in v:
-                if nt in rule_to:
-                    rules[k].append(rule_to.replace(nt, ''))
-
-
-def flow(x_nt, trace=[]):
-    for x_rt in rules[x_nt]:
-        x_rtnt = any(x in x_rt for x in vn) and [x for x in vn if x in x_rt][0]
-        logging.info('flow')
-        logging.info('x_rt ' + x_rt)
-        logging.info('trace ' + str(trace))
-        logging.info('x_rtnt ' + str(x_rtnt))
-        if x_rtnt:
-            x_rtt = x_rt.replace(x_rtnt, '')
-            if x_rtnt in ''.join(x + y for x, y in trace):
-                # rec
-                #print('they might tho')
-                #print(x_rtnt == trace[0][1], x_rtnt, trace[0][1])
-                if x_rtnt == trace[0][1]:
-                    logging.info('flow yep')
-                    
-                    rules[x_rtnt].append('(' + ''.join(x[0] for x in trace) + x_rtt + ')*')
-                    rules[x_rtnt].remove(''.join(trace[1]))
-                    
-                    logging.info('added ' + '(' + ''.join(x[0] for x in trace) + x_rtt + ')*' + ' to ' + x_rtnt)
-                    logging.info('removed ' + ''.join(trace[1]) + ' from ' + x_rtnt)
-                    logging.info('rules ' + str(rules))
-            else:
-                flow(x_rtnt, trace + [(x_rtt, x_rtnt)])
-        logging.info('')
-
-
-
-def replace_recursion():
-    # edge
-    for rt in rules[s]:
-        if s in rt:
-            tmp_x = rt.replace(s, '')
-            rules[s].append(f'({tmp_x})*')
-            rules[s].remove(rt)
-    # else
-    flow(s, [('', s)])
-    for fr, tr in rules.items():
-        if fr != s:
-            flow(fr, [('', fr)])
-    logging.info('recursion replaced ' + str(rules))
-
-
-def remove_dead_prikol(dead_neterminal):
-    for x_rf, x_rt in rules.items():
-        dead_to_me = []
-        for x_rule in x_rt:
-            if dead_neterminal in x_rule:
-                dead_to_me.append(x_rule)
-        for i in dead_to_me:
-            # print('rem', i)
-            rules[x_rf].remove(i)
-
-
-def remove_dead_prikoli():
-    for x_rf, x_rt in rules.items():
-        if not x_rt:
-            # print('call', x_rf)
-            logging.warning('remove dead prikol ' + x_rf)
-            remove_dead_prikol(x_rf)
-
 
 def solve_line(ak, av, meta_rules):
     logging.info('call solve_line ' + ak)
+    logging.info(repr(av))
     logging.info('meta ' + str(meta_rules))
-    # ex S -> aA | bB | bA
-    # p: 
+
     stars = []
     concs = []
+    conc_non = {k: [] for k in rules.keys()}
+
     for i in av:
         for mk, mv in meta_rules.items():
             if mk in i:
-                logging.info(mk + ' in ' + i + ' so replacing with ' + mv)
+                logging.info(repr(mk) + ' in ' + repr(i) + ' so replacing with ' + repr(mv))
                 i = i.replace(mk, mv)
         if ak in i:
-            logging.info('stars append ' + '({})*'.format(i.replace(ak, '')))
-            stars.append('({})*'.format(i.replace(ak, '')))
+            logging.info('stars append ' + i.replace(ak, ''))
+            stars.append(i.replace(ak, ''))
         else:
-            logging.info('concs append ' + i)
-            concs.append(i)
+            logging.info('solve_line big else ' + i) 
+            # concs.append(i)
+            if all(x in vt for x in i):
+                concs.append(i)
+                logging.info('solve_line one symb ' + i) 
+            else:
+                got_nt = list(filter(lambda x: x in vn, i))[0]
+                logging.info('got_nt ' + got_nt)
+                conc_non[got_nt].append(i.replace(got_nt, ''))
+                logging.info('conc_non ' + repr(conc_non[got_nt]))
 
 
-
-    logging.info('solve_line return ' + ''.join(stars) + '+'.join(concs))
+    logging.info('solve_line return ')
+    logging.info(repr(stars))
+    logging.info(repr(concs))
+    logging.info(repr(conc_non))
     logging.info('')
-    return ''.join(stars) + '+'.join(concs)
+
+    rv = ''
+    if len(stars) > 0:
+        rv += '('
+    rv += ''.join('+'.join(stars))
+    if len(stars) > 0:
+        rv += ')*'
+    
+    plust = []
+    for k, v in conc_non.items():
+        if len(v) == 0:
+            continue
+        elif len(v) > 1:
+            plust.append(k + '(' + '+'.join(v) + ')')
+        else:
+            plust.append(k + v[0])
+
+    rv += '+'.join(plust + concs)
+    logging.info('rv ' + rv)
+    return rv
 
 
 def xy():
@@ -225,250 +343,6 @@ def xy():
     return xsr
 
 
-def generate_reg_exp(x_nt):
-    logging.info('call generate_reg_exp')
-    global rules, vt, vn
-
-    final_regex = ''
-    final_regex += '('
-    if len([x for x in rules[x_nt] if '*' in x]) > 1:
-        final_regex += ('(' + ' + '.join([y[:-1] for y in filter(lambda x: '*' in x, rules[x_nt])]) + ')*')
-        for xxr in filter(lambda x: '*' in x, rules[x_nt]):
-            rules[x_nt].remove(xxr)
-    for option in sorted(rules[x_nt], key=lambda x: '*' not in x):
-        logging.info('in generate_reg_exp ' + final_regex)
-        if '*' in option:
-            final_regex += (option + ' ')
-        elif any(x in option for x in vn):
-            # neterminal est
-            final_regex += ('(' + get_t(option) + generate_reg_exp([x for x in vn if x in option][0]) + ')' + ' + ')
-        elif all(x in vt for x in option):
-            final_regex += (option + ' + ')
-    final_regex = final_regex.rstrip('+ ')
-    final_regex += ')'
-
-    return final_regex if all(['(' in final_regex, ')' in final_regex, len(final_regex) > 3]) else final_regex[1:-1]
-
-
-def new_parse_regex(q):
-    '''
-    ?
-    '''
-    logging.info('call new_parse_regex')
-    # print('call new_parse_regex')
-    q = q.replace(' ', '')
-
-    qres = {'n': '+', 'c': []}
-    stack = ''
-    i = 0
-    br = 0
-    ab = False
-
-    while i < len(q):
-        if qres['n'] == '+':
-            if ab:
-                stack += q[i]
-                if q[i] == '(':
-                    br += 1
-                elif q[i] == ')':
-                    br -= 1
-                    if br == 0:
-                        ab = False
-            elif q[i] != '+' and q[i] != '(':
-                stack += q[i]
-            elif q[i] == '(':
-                stack += q[i]
-                br += 1
-                ab = True
-            elif q[i] == '+':
-                qres['c'].append({'n': 'x', 'c': [new_parse_regex(stack)]})
-                stack = ''
-        elif qres['n'] == 'x':
-            ...
-        i += 1
-    return qres
-
-
-def parse_reg(xs):
-    logging.info('call parse_reg ' + str(xs))
-    xs = xs.replace(' ', '')
-    # print('call parse_reg', xs)
-    stack = []
-
-    open_br = 0
-    pr_str = []
-    open_or = False
-    i = 0
-    while i < len(xs):
-        # print('i', i, 'c', int(open_or), open_br, pr_str ,xs[i], stack)
-        if xs[i] == '(':
-            open_br += 1
-            pr_str.append('')
-        elif xs[i] == ')':
-            open_br -= 1
-            t = pr_str.pop()
-            if not open_or:
-                xtt = parse_reg(t)
-                if xtt != []:
-                    stack.append(xtt)
-            else:
-                tt = stack.pop()
-                stack.append(['+', parse_reg(t), tt])
-                open_or = False
-            # if open_br == 0:
-            #     if not open_or:
-            #         stack.append(parse_reg(pr_str))
-            #     else:
-            #         t = stack.pop()
-            #         stack.append(['+', t, parse_reg(pr_str)])
-            #         open_or = False
-            #     pr_str = ''
-        else:
-            if xs[i] == '+' and not open_or:
-                open_or = True
-            elif open_br > 0:
-                pr_str[-1] += xs[i]
-            elif (xs[i] in vt and not open_or) and ((i+1 < len(xs) and xs[i+1] != '*') or i+1 >= len(xs)):
-                stack.append(xs[i])
-            elif xs[i] in vt and not open_or and i+1 < len(xs) and xs[i+1] == '*':
-                stack.append(['*', xs[i]])
-                i += 1
-            elif (xs[i] in vt and open_or) and ((i+1 < len(xs) and xs[i+1] != '*') or i+1 >= len(xs)):
-                t = stack.pop()
-                stack.append(['+', t, xs[i]])
-                open_or = False
-            elif xs[i] in vt and open_or and i+1 < len(xs) and xs[i+1] == '*':
-                t = stack.pop()
-                stack.append(['+', t, ['*', xs[i]]])
-                open_or = False
-                i += 1
-            elif xs[i] == '*':
-                t = stack.pop()
-                stack.append(['*', t])
-            elif xs[i] == '+' and open_or:
-                raise Exception
-        i += 1
-        # print('stack', stack)
-    # print('stack return')
-    return stack
-
-
-def replace_stars(x_list_reg, star_iter):
-    # print('replace stars call', x_list_reg)
-    for i, o in enumerate(x_list_reg):
-        # print('->', o)
-        if type(o) is list:
-            if type(o[0]) is list:
-                x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
-            elif o[0] == '*':
-                if type(o[1]) is list:
-                    x_list_reg[i][1] = replace_stars(x_list_reg[i][1], star_iter)
-                x_list_reg[i] = [o[1]] * next(star_iter)
-            elif o[0] == '+':
-                x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
-            elif type(o[0]) is str:
-                x_list_reg[i] = replace_stars(x_list_reg[i], star_iter)
-    return x_list_reg
-
-def replace_pluses(x_list_reg, plus_iter):
-    # print('replace pluses call', x_list_reg)
-    for i, o in enumerate(x_list_reg):
-        if type(o) is list and o != []:
-            if type(o[0]) is list:
-                x_list_reg[i] = replace_pluses(x_list_reg[i], plus_iter)
-            elif o[0] == '+':
-                if type(o[1]) is str and type(o[2]) is str:
-                    x_list_reg[i] = o[1 + next(plus_iter)]
-                else: #elif type(o[1]) is not str and type(o[2]) is not str:
-                    x_list_reg[i] = replace_pluses(x_list_reg[i], plus_iter)[1 + next(plus_iter)]
-            elif o[0] == '*':
-                x_list_reg[i] = replace_pluses(x_list_reg[i], plus_iter)
-            elif type(o[0]) is str:
-                x_list_reg[i] = replace_pluses(x_list_reg[i], plus_iter)
-
-            # elif o[0] == '+':
-            #     x_list_reg[i] = replace_stars(x_list_reg[i], plus_iter)
-    return x_list_reg
-
-
-
-def gen_chains_from_parsed_reg(x_reg, maxlen):
-    logging.info('call gen_chains_from_parsed_reg')
-    # print('gen chains from regex', x_reg)
-    chains = set()
-    i = 1
-    while True:
-        logging.info('i ' + str(i))
-        new_chains = set()
-
-        for star_variation in itertools.product(* [range(i)] * str(x_reg).count('*')):
-            x_reg_nostars = replace_stars(copy.deepcopy(x_reg), iter(star_variation))
-            # print('>>>>>', x_reg_nostars)
-
-            for plus_variation in itertools.product(* [range(2)] * str(x_reg_nostars).count('+')):
-                x_reg_noplus = replace_pluses(copy.deepcopy(x_reg_nostars), iter(plus_variation))
-                # print(x_reg_noplus)
-
-                new_chains.add(''.join(flatten(x_reg_noplus)))
-
-        # cock
-        if any(len(x) > maxlen + 5 for x in new_chains) or all(x in chains for x in new_chains):
-            chains.update(new_chains)
-            break
-        chains.update(new_chains)
-
-        i += 1
-    return chains
-
-#print(gen_chains_from_parsed_reg([['*', ['+', ['b', 'a'], ['a', 'a']]], ['*', ['b', 'a']], ['b', 'b']], 6))
-#exit()
-
-'''
-def gen_chains_from_parsed_reg_old(x_reg, maxlen):
-    print()
-    print('gen chains from regex old')
-    chains = set()
-    for plus_variation in itertools.product(* [range(2)] * str(x_reg).count('+')):
-        print(plus_variation)
-        x_reg_noplus = replace_pluses(copy.deepcopy(x_reg), iter(plus_variation))
-        print('=======', x_reg_noplus)
-
-        sub_chains = set()
-        i = 1
-        while True:
-            # print(i)
-            new_chains = set()
-            
-            # print('i', i)
-            # print(list(itertools.product(* [range(i)] * str(x_reg_noplus).count('*'))))
-            for star_variation in itertools.product(* [range(i)] * str(x_reg_noplus).count('*')):
-                # print(star_variation)
-                x_reg_nostars = replace_stars(copy.deepcopy(x_reg_noplus), iter(star_variation))
-                print(x_reg_nostars)
-                new_chains.add(''.join(flatten(x_reg_nostars)))
-
-            if any(len(x) > maxlen for x in new_chains) or all(x in sub_chains for x in new_chains):
-                sub_chains.update(new_chains)
-                break
-            sub_chains.update(new_chains)
-
-            i += 1
-        chains.update(sub_chains)
-    return chains
-'''
-
-# with open('input.txt', encoding='utf-8') as f:
-#     proc_gram(f.read())
-
-# asd = parse_reg('(aa+bb)*')
-# # print('PARSED REG', asd)
-
-# print(
-#     gen_chains_from_parsed_reg(asd, 10)
-#     )
-# exit()
-
-
 def gen_opt_gram(unc_chain, maxlen, tmp = ''):
     for xgo_symb in unc_chain:
         for pf, pt in orig_rules.items():
@@ -480,8 +354,7 @@ def gen_opt_gram(unc_chain, maxlen, tmp = ''):
 def gen_chains_from_gram(s_symb, maxlen):
     xg_res = set()
 
-    for _ in range(9999):
-        # print(s_symb)
+    while True:
         to_proc = set()
         for e in gen_opt_gram(s_symb, maxlen):
             if not e:
@@ -498,134 +371,16 @@ def gen_chains_from_gram(s_symb, maxlen):
     return [x for x in xg_res if len(x) <= maxlen]
 
 
-def get_disc(string):
-    logging.info('get_disc call ' + str(string))
-    result = []
-
-    p = 0
-    stack = ''
-    for i, c in enumerate(string[1]):
-        if p > 0:
-            if c == ')':
-                p -= 1
-                if p == 0:
-                    if i + 1 < len(string[1]) and string[1][i+1] == '*':
-                        result.append(('*', stack))
-                    else:
-                        result.append(('+', stack))
-                    stack = ''
-            elif c == '(':
-                p += 1
-            else:
-                stack += c
-        else:
-            if c == '(':
-                p += 1
-            elif c == ')':
-                logging.error('get_disc invalid )')
-            elif c == '*':
-                pass
-            else:
-                result.append(('+', c))
-
-    logging.info('get_disc return ' + str(result))
-    return result
-
-
-def parse(string):
-    logging.info('TRACE ' + str(string))
-    if len(string[1]) == 1:
-        if string[1] in ['*', '+']:
-            logging.error('parse invalid symbol')
-        logging.info('END ' + str(string))
-        return string[1]
-
-    tree = []
-    if string[0] == '+':
-        tree = [('x', parse(('x', x))) for x in re.split('\+(?![^\(]*\))', string[1])]
-    elif string[0] == 'x':
-        tree = [(s, parse((s, x))) for s, x in get_disc(string)]
-    elif string[0] == '*':
-        tree = ('+', parse(('+', string[1])))
-
-
-    logging.info('END ' + str(tree))
-    return tree
-
-
-@print_calls
-def build(regular, dim):
-    if type(regular[1]) in (list, tuple) or (type(regular[1]) is str and regular[0] == '*'):
-        if regular[0] == '+':
-            tt = [build(x, dim) for x in regular[1]]
-            if type(tt) is list and len(tt) == 1 and type(tt[0]) is list:
-                return tt[0]
-            else:
-                return tt 
-        elif regular[0] == 'x':
-            return [''.join(y) for y in itertools.product(*[build(x, dim) for x in regular[1]])]
-        elif regular[0] == '*':
-            if type(regular[1]) is not str:
-                bts = build(regular[1], dim)
-            else:
-                bts = [regular[1]]
-
-            # print("^-^ HERE", regular, bts)
-            # always list tho?
-            logging.info('bts ' + repr(bts))
-
-            btl = [x for x in bts]
-            #if type(btl[0]) is list:
-            #    btl = btl[0] 
-            i2 = 1
-            while len(btl[-1]) < dim[1]:
-                t = []
-                for i in range(len(bts) * i2):
-                    for e in bts:
-                        t.append(btl[-(i+1)] + e)
-                btl += t
-                i2 **= 2
-                logging.info(str(i2) + ' ' +str(btl))
-            return [''] + btl
-        else:
-            logging.error('build invalid regular[0]')
-    else:
-        return regular[1]
-
-def generate(built, minlen, maxlen):
-    built = list(set(build(('+', built), (None, maxlen))))
-    logging.info('generate built ' + repr(built))
-    if all(type(i) is str for i in built):
-        built.sort()
-        return [x for x in built if len(x) >= minlen and len(x) <= maxlen]
-    else:
-        return [x for x in soretd([''.join(z) for z in itertools.product(*built)]) if len(x) >= minlen and len(x) <= maxlen]
-
-
-# xd = parse_reg(out_of_names)
-# print('parsed reg', xd, '\n')
-
-# print(parse_reg('(a+(b+a+b)*+a)*'))
-
-# MAX_LEN = 10
-# MIN_LEN = 0
-# generated_chains = gen_chains_from_parsed_reg(xd, MAX_LEN)
-# print([i for i in sorted(generated_chains, key=len) if len(i) <= MAX_LEN and len(i) >= MIN_LEN])
-# 
-# generated_chains_gram = gen_chains_from_gram(s, MAX_LEN)
-# print([i for i in sorted(generated_chains_gram, key=len) if len(i) <= MAX_LEN and len(i) >= MIN_LEN])
-
-
 class Application(Frame):
     def __init__(self):
         self.root = Tk()
         super().__init__(self.root)
         self.root.geometry("800x600+10+10")
-        self.root.title("Жижник1337")
+        self.root.title("Вар. 12. Регулярные выражения и грамматики")
         self.pack(fill=BOTH, expand=1)
 
         self.minl = IntVar(self.root, 0)
-        self.maxl = IntVar(self.root, 6)
+        self.maxl = IntVar(self.root, 5)
 
         self.l1 = Label(self.root, text="Введите грамматику")
         self.l1.place(x=5, y=5)
@@ -660,11 +415,20 @@ class Application(Frame):
         self.b5 = Button(self.root, text="Запись в файл", command=self.b5)
         self.b5.place(x=400, y=158)
 
+        self.b6 = Button(self.root, text="О программе", command=self.b6)
+        self.b6.place(x=500, y=158)
+
         self.s1 = Separator(self.root, orient='horizontal')
         self.s1.place(x=5, y=285, width=790)
 
-        self.l4 = Label(self.root, text='Цепочки')
-        self.l4.place(x=5, y=290)
+        self.lx1 = Label(self.root, text='Цеп. грамматики')
+        self.lx1.place(x=5, y=300)
+
+        self.lx2 = Label(self.root, text='Цеп. регулярного выражения')
+        self.lx2.place(x=255, y=300)
+
+        self.lx3 = Label(self.root, text='Цеп. вашего выражения')
+        self.lx3.place(x=505, y=300)
 
         self.vsb = Scrollbar(orient="vertical", command=self.OnVsb)
         self.vsb.place(x=760, y=325, height=200, width=15)
@@ -688,16 +452,12 @@ class Application(Frame):
         self.spin2 = Spinbox(self.root, from_=0, to=100, textvariable=self.maxl)
         self.spin2.place(y=225, x=455, width=50)
 
-        # for i in range(100):
-        #     self.lb1.insert("end", "item %s" % i)
-        #     self.lb2.insert("end", "item %s" % i)
-        #     self.lb3.insert("end", "item %s" % i)
-
         self.gram_chains = []
         self.reg_chains = []
+        self.ure_chains = []
 
         with open('input.txt', encoding='utf-8') as f:
-            self.a1.insert(1.0, f.read()) # fline, *p = [x.strip() for x in f.readlines()]
+            self.a1.insert(1.0, f.read())
 
         self.a3.configure(state='disabled')
 
@@ -714,22 +474,9 @@ class Application(Frame):
         tex = self.a1.get(1.0, 'end')
         proc_gram(tex)
 
-        remove_lambda_rules()
-        logging.info('remove_lambda_rules ' + str(rules))
-        
-        # replace_recursion()
-        # logging.info('replace_recursion' + str(rules))
-        # remove_dead_prikoli()
-        # logging.info('remove_dead_prikoli' + str(rules))
-
-        logging.info('')
-
-        # gre = generate_reg_exp(s)
-        # generated_reg_exp = gre[1:-1] if all(['(' in gre, ')' in gre, len(gre) > 3]) else gre
-        
         generated_reg_exp = xy()
 
-        logging.info('reuslt generate_reg_exp ' + generated_reg_exp)
+        logging.info('reuslt xy ' + repr(generated_reg_exp))
         
         self.a3.configure(state='normal')
         self.a3.delete(1.0, 'end')
@@ -743,8 +490,10 @@ class Application(Frame):
         tex = self.a1.get(1.0, 'end')
         proc_gram(tex)
         generated_chains_gram = gen_chains_from_gram(s, self.maxl.get())
+        
         self.lb1.delete(0, 'end')
-        # , key=len
+        self.gram_chains = []
+
         for x in [i for i in sorted(generated_chains_gram) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb1.insert('end', x)
             self.gram_chains.append(x)
@@ -753,20 +502,19 @@ class Application(Frame):
     def b3(self):
         if self.maxl.get() < self.minl.get():
             return
+        
         tex = self.a3.get(1.0, 'end').strip()
+        
         if not tex or (len(tex) == 1 and tex not in vt):
             return
-        # xd = parse_reg(tex)
-        xd = parse(('+', tex))
-        logging.info('parsed reg ' + str(xd))
+ 
+        parsed_reg = pNode(tex)
+        
+        self.lb2.delete(0, 'end')
+        self.reg_chains = []
 
-        # generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
-        self.lb2.delete(0, 'end') # purge list
-
-        #for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
-        #    self.lb2.insert('end', x)
-        #    self.reg_chains.append(x)
-        for x in generate(xd, self.minl.get(), self.maxl.get()):
+        final_chains = [i for i in set(class_gen(parsed_reg, self.maxl.get())) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]
+        for x in sorted(final_chains):
             self.lb2.insert('end', x)
             self.reg_chains.append(x)
 
@@ -777,24 +525,29 @@ class Application(Frame):
         tex = self.a2.get(1.0, 'end').strip()
         if not tex or (len(tex) == 1 and tex not in vt):
             return
-        # xd = parse_reg(tex)
-        xd = parse(('+', tex)) 
-        logging.info('parsed reg ' + str(xd))
 
-        generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
+        parsed_reg = pNode(tex)
+        
         self.lb3.delete(0, 'end')
+        self.ure_chains = []
 
-        for x in generate(xd, self.minl.get(), self.maxl.get()):
+        final_chains = [i for i in set(class_gen(parsed_reg, self.maxl.get())) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]
+        for x in sorted(final_chains):
             self.lb3.insert('end', x)
+            self.ure_chains.append(x)
 
-        #for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
-        #    self.lb3.insert('end', x)
 
     def b5(self):
-        ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦеопчки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
+        ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + \
+        '\nРегулярное выржаение:\n' + self.a3.get(1.0, 'end') + \
+        '\nЦепочки грамматики:\n' + '\n'.join(self.gram_chains) + \
+        '\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains) + \
+        '\nЦепочки вашего регулярного выражения:\n' + '\n'.join(self.ure_chains)
         file_dump(ox)
         logging.info('dump to file')
 
+    def b6(self):
+        messagebox.showinfo('О программе', 'Автор: Логинов В.С.\nГруппа: ИП-711\nВариант: 12. Регулярные выражения и грамматики')
 
     def OnVsb(self, *args):
         self.lb1.yview(*args)
