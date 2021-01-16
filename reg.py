@@ -4,6 +4,7 @@ import itertools
 
 import functools
 
+
 def print_calls(func):
     @functools.wraps(func)
     def wrapper(*func_args, **func_kwargs):
@@ -15,7 +16,45 @@ def print_calls(func):
         return retval
     return wrapper
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+
+def get_conc(string):
+    logging.info('get_conc call ' + str(string))
+    result = []
+    
+    p = 0
+    stack = ''
+    for i, c in enumerate(string):
+        if p > 0:
+            if c == ')':
+                p -= 1
+                if p > 0:
+                    stack += c
+                else:
+                    stack += c
+            elif c == '(':
+                p += 1
+                stack += c
+            else:
+                stack += c
+        else:
+            if c == '(':
+                p += 1
+                stack += c
+            elif c == ')':
+                logging.error('invalid ) in get_conc')
+            elif c == '+':
+                result.append(stack)
+                stack = ''
+            else:
+                stack += c
+
+    result.append(stack)
+
+    logging.info('get_conc return ' + str(result))
+
+    return result
+
 
 def get_disc(string):
     logging.info('get_disc call ' + str(string))
@@ -23,35 +62,127 @@ def get_disc(string):
 
     p = 0
     stack = ''
-    for i, c in enumerate(string[1]):
+    for i, c in enumerate(string):
         if p > 0:
             if c == ')':
                 p -= 1
+                stack += c
+                
                 if p == 0:
-                    if i + 1 < len(string[1]) and string[1][i+1] == '*':
-                        result.append(('*', stack))
+                    if i + 1 < len(string) and string[i+1] == '*':
+                        result.append([True, stack])
                     else:
-                        result.append(('+', stack))
+                        result.append([False, stack])
                     stack = ''
+                else:
+                    ...
             elif c == '(':
                 p += 1
+                stack += c
             else:
                 stack += c
         else:
             if c == '(':
                 p += 1
+                stack += c
             elif c == ')':
-                logging.error('get_disc invalid )')
+                logging.error('invalid ) in get_disc')
             elif c == '*':
                 pass
             else:
-                result.append(('+', c))
+                result.append([False, c])
 
     logging.info('get_disc return ' + str(result))
+
     return result
+
+def check(expression):  
+    open_tup = tuple('(') 
+    close_tup = tuple(')') 
+    map = dict(zip(open_tup, close_tup)) 
+    queue = [] 
+  
+    for i in expression: 
+        if i in open_tup: 
+            queue.append(map[i]) 
+        elif i in close_tup: 
+            if not queue or i != queue.pop(): 
+                return False
+    if not queue: 
+        return True
+    else: 
+        return False
+
+def unp(string):
+    #if string.startswith('(') and string.endswith(')') and string.count('(') == 1 and string.count(')') == 1:
+    #    return string[1:-1]
+    if string.startswith('(') and string.endswith(')'):
+        if check(string[1:-1]):
+            return string[1:-1]
+    return string
+
+class sNode(object):
+    def __init__(self, string):
+        self.string = string
+        self.string = unp(self.string)
+        self.childs = []
+        self.parse()
+
+    def __str__(self):
+        return f'[*][{self.string}] <' + ', '.join(str(x) for x in self.childs) + '>'
+
+    def parse(self):
+        if any(x in self.string for x in ['+', '*', '(', ')']):
+            self.childs = [pNode(x) for x in get_conc(self.string)]
+        
+
+class xNode(object):
+    def __init__(self, string):
+        self.string = string
+        self.string = unp(self.string)
+        self.childs = []
+        self.parse()
+
+    def __str__(self):
+        return f'[x][{self.string}] <' + ', '.join(str(x) for x in self.childs) + '>'
+
+    # def parse(self):
+    #     if any(x in self.string for x in ['+', '*', '(', ')']):
+    #         self.childs = [pNode(x) for x in get_disc(self.string)]
+
+    def parse(self):
+        if any(x in self.string for x in ['+', '*', '(', ')']):
+            for is_star, node in get_disc(self.string):
+                if is_star:
+                    self.childs.append(sNode(node))
+                else:
+                    self.childs.append(pNode(node))
+        
+
+class pNode(object):
+    def __init__(self, string):
+        self.string = string
+        self.string = unp(self.string)
+        self.childs = []
+        self.parse()
+
+    def __str__(self):
+        return f'[+][{self.string}] <' + ', '.join(str(x) for x in self.childs) + '>'
+
+    def parse(self):
+        if any(x in self.string for x in ['+', '*', '(', ')']):
+            self.childs = [xNode(x) for x in get_conc(self.string)]
+
+
+
+
+
 
 
 def parse(string):
+    '''
+    deprecated
+    '''
     logging.info('TRACE ' + str(string))
     if len(string[1]) == 1:
         if string[1] in ['*', '+']:
@@ -61,7 +192,7 @@ def parse(string):
 
     tree = []
     if string[0] == '+':
-        tree = [('x', parse(('x', x))) for x in re.split('\+(?![^\(]*\))', string[1])]
+        tree = [('x', parse(('x', x))) for s, x in get_conc(string)]
     elif string[0] == 'x':
         tree = [(s, parse((s, x))) for s, x in get_disc(string)]
     elif string[0] == '*':
@@ -72,18 +203,41 @@ def parse(string):
     return tree
 
 
-# @print_calls
+@print_calls
 def build(regular, dim):
-    if type(regular[1]) in (list, tuple):
+    if type(regular[1]) in (list, tuple) or (type(regular[1]) is str and regular[0] == '*'):
         if regular[0] == '+':
-            return [build(x, dim) for x in regular[1]]
+            tt = [build(x, dim) for x in regular[1]]
+            if type(tt) is list and len(tt) == 1 and type(tt[0]) is list:
+                return tt[0]
+            else:
+                return tt 
         elif regular[0] == 'x':
             return [''.join(y) for y in itertools.product(*[build(x, dim) for x in regular[1]])]
         elif regular[0] == '*':
-            bts = build(regular[1], dim)
+            if type(regular[1]) is not str:
+                bts = build(regular[1], dim)
+            else:
+                bts = [regular[1]]
+            logging.info('bts ' + repr(bts))
 
+            xts = []
+            for e in bts:
+                if type(e) is list and len(e) == 1:
+                    xts.append(e[0])
+                elif type(e) is str:
+                    xts.append(e)
+            if xts:
+                bts = xts
+            bts = bts_ret(bts)
+            # print("^-^ HERE", regular, bts)
             # always list tho?
+
+            logging.info('bts ' + repr(bts))
+
             btl = [x for x in bts]
+            #if type(btl[0]) is list:
+            #    btl = btl[0] 
             i2 = 1
             while len(btl[-1]) < dim[1]:
                 t = []
@@ -91,7 +245,8 @@ def build(regular, dim):
                     for e in bts:
                         t.append(btl[-(i+1)] + e)
                 btl += t
-                i2 *= 2
+                i2 **= 2
+                logging.info(str(i2) + ' ' +str(btl))
             return [''] + btl
         else:
             logging.error('build invalid regular[0]')
@@ -99,22 +254,29 @@ def build(regular, dim):
         return regular[1]
 
 def generate(built, minlen, maxlen):
-    built = build(('+', out), (None, maxlen))
-    return [x for x in [''.join(z) for z in itertools.product(*built)] if len(x) >= minlen and len(x) <= maxlen]
+    logging.info('GEN ' + repr(built))
+    from pprint import pprint
+    pprint(built)
+    built = build(('+', built), (None, maxlen))
+    logging.info('generate built ' + repr(built))
+    if all(type(i) is str for i in built):
+        logging.info('1')
+        built.sort()
+        return list(set([x for x in built if len(x) >= minlen and len(x) <= maxlen]))
+    else:
+        logging.info('2')
+        # return list(set(flatten([x for x in built if len(x) >= minlen and len(x) <= maxlen])))
+        logging.info(repr([''.join(z) for z in itertools.product(*built)]))
+        logging.info('here' + repr( [x for x in itertools.product(built[0], built[1])]))
+        # logging.info(repr())
+        # return [x+y for x,y in itertools.product(built[0], built[1])] + list(set([x for x in sorted([''.join(z) for z in itertools.product(*built)] + list(flatten(built))) if len(x) >= minlen and len(x) <= maxlen]))
 
 if __name__ == '__main__':
-    out = parse(('+', 'a+b(c+d)*+ef'))
-    logging.info(str(out))
-    
-    from pprint import pprint
-    pprint(out)
-    
-    print(generate(out, 0, 7))
 
-    # logging.info(str(get_disc('b(c+d)*')))
+    ix = pNode('a+b(c+d)*+ef')
+    logging.info(ix)
 
+    logging.info('=TEST PARSE=')
+    logging.info(pNode('a+b(c+d)*+ef'))
+    logging.info(pNode('((a+b+c)(a+b+c))*cc'))
 
-    # regex_test1 = ['a+b(c+d)*+ef']
-
-    # for case in regex_test1:
-    #     logging.info('str "' + case + '" res ' + str(re.split('\+(?![^\(]*\))', case)))
