@@ -1,5 +1,5 @@
 # λ
-from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar
+from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar, messagebox
 from tkinter.ttk import Frame, Button, Label, Style, Separator, Spinbox
 
 import re
@@ -202,8 +202,6 @@ def solve_line(ak, av, meta_rules):
         else:
             logging.info('concs append ' + i)
             concs.append(i)
-
-
 
     logging.info('solve_line return ' + ''.join(stars) + '+'.join(concs))
     logging.info('')
@@ -577,14 +575,18 @@ def build(regular, dim):
             else:
                 bts = [regular[1]]
             logging.info('bts ' + repr(bts))
+
             xts = []
             for e in bts:
                 if type(e) is list and len(e) == 1:
                     xts.append(e[0])
+                elif type(e) is str:
+                    xts.append(e)
             if xts:
                 bts = xts
             # print("^-^ HERE", regular, bts)
             # always list tho?
+
             logging.info('bts ' + repr(bts))
 
             btl = [x for x in bts]
@@ -634,7 +636,7 @@ class Application(Frame):
         self.root = Tk()
         super().__init__(self.root)
         self.root.geometry("800x600+10+10")
-        self.root.title("Жижник1337")
+        self.root.title("Вар. 12. Регулярные выражения и грамматики")
         self.pack(fill=BOTH, expand=1)
 
         self.minl = IntVar(self.root, 0)
@@ -673,11 +675,23 @@ class Application(Frame):
         self.b5 = Button(self.root, text="Запись в файл", command=self.b5)
         self.b5.place(x=400, y=158)
 
+        self.b6 = Button(self.root, text="О программе", command=self.b6)
+        self.b6.place(x=500, y=158)
+
         self.s1 = Separator(self.root, orient='horizontal')
         self.s1.place(x=5, y=285, width=790)
 
-        self.l4 = Label(self.root, text='Цепочки')
-        self.l4.place(x=5, y=290)
+        # self.l4 = Label(self.root, text='Цепочки')
+        # self.l4.place(x=5, y=290)
+
+        self.lx1 = Label(self.root, text='Цеп. грамматики')
+        self.lx1.place(x=5, y=300)
+
+        self.lx2 = Label(self.root, text='Цеп. регулярного выражения')
+        self.lx2.place(x=255, y=300)
+
+        self.lx3 = Label(self.root, text='Цеп. вашего выражения')
+        self.lx3.place(x=505, y=300)
 
         self.vsb = Scrollbar(orient="vertical", command=self.OnVsb)
         self.vsb.place(x=760, y=325, height=200, width=15)
@@ -808,6 +822,8 @@ class Application(Frame):
         file_dump(ox)
         logging.info('dump to file')
 
+    def b6(self):
+        messagebox.showinfo('О программе', 'Автор: Логинов В.С.\nГруппа: ИП-711\nВариант: 12. Регулярные выражения и грамматики')
 
     def OnVsb(self, *args):
         self.lb1.yview(*args)
