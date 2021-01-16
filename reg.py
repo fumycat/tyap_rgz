@@ -200,32 +200,35 @@ def normal_output(node_obj, deep=0):
             normal_output(child, deep + 1)
 
 
-def class_gen(tree_obj):
+def class_gen(tree_obj, burn):
     logging.info('call class_gen ' + str(tree_obj))
     if type(tree_obj) is sNode:
         # ['c', 'd'] -> ['c', 'd', 'cd', 'dc', 'cc', 'dd', ...]
         # ['ab'] -> ['ab', 'abab', ...]
         z = []
         for child in tree_obj.childs:
-            z += class_gen(child)
+            z += class_gen(child, burn)
         if len(z) == 1:
-            return list(itertools.repeat(z[0], 3))
+            return list(itertools.repeat(z[0], burn))
         else:
-            return ['', 'y', 'yy']
+            # STRING FACTORY
+            package = ['']
+            for i in range(burn):
+                package += [''.join(x) for x in itertools.product(z, repeat=i)]
+            return package
+            # return ['', 'c', 'd', 'cc', 'dd', 'cd', 'dc']
     elif type(tree_obj) is pNode:
         # ['a'], ['b', 'bc' ,'bd', ...], ['ef'] -> ['a', 'b', 'bc' ,'bd', ..., 'ef']
         z = []
         for child in tree_obj.childs:
-            z += class_gen(child)
+            z += class_gen(child, burn)
         logging.info('class_gen(pNode) return ' + str(z))
         return z
     elif type(tree_obj) is xNode:
         # ['b'], ['', 'c', 'd', 'cc', 'cd', ...] -> ['b', 'bc' ,'bd', ...]
-        z = []
-        for child in tree_obj.childs:
-            z += class_gen(child)
+        z = [class_gen(child, burn) for child in tree_obj.childs]
         y = []
-        logging.info('z ' + str(z)) # <----
+        # logging.info('z ' + str(z)) # <----
         for t in itertools.product(*z):
             y.append(''.join(t))
         logging.info('class_gen(xNode) return ' + str(y))
@@ -332,14 +335,15 @@ def generate(built, minlen, maxlen):
 
 if __name__ == '__main__':
 
-    i_1 = pNode('a+b(c+d)*+ef')
-    logging.info(i_1)
-    normal_output(i_1)
+    # i_1 = pNode('a+b(c+d)*+ef')
+    # logging.info(i_1)
+    # normal_output(i_1)
 
-    logging.info(str(class_gen(i_1)))
+    # logging.info(str(class_gen(i_1, 4)))
 
-    #i_2 = pNode('((a+b+c)(a+b+c))*cc')
-    #logging.info(i_2)
-    #normal_output(i_2)
+    i_2 = pNode('((a+b+c)(a+b+c))*cc')
+    logging.info(i_2)
+    normal_output(i_2)
 
+    logging.info(str(class_gen(i_2, 2)))
 
