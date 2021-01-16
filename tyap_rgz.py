@@ -1,4 +1,3 @@
-# λ
 from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar, messagebox
 from tkinter.ttk import Frame, Button, Label, Style, Separator, Spinbox
 
@@ -217,12 +216,14 @@ def class_gen(tree_obj, burn):
             package = ['']
             for i in range(burn + 1):
                 package += [z[0] * i]
+            logging.info('class_gen(sNode) return ' + str(package))
             return package
         else:
             # STRING FACTORY
             package = ['']
             for i in range(burn):
                 package += [''.join(x) for x in itertools.product(z, repeat=i)]
+            logging.info('class_gen(sNode) return ' + str(package))
             return package
             # return ['', 'c', 'd', 'cc', 'dd', 'cd', 'dc']
     elif type(tree_obj) is pNode:
@@ -230,7 +231,7 @@ def class_gen(tree_obj, burn):
         z = []
         for child in tree_obj.childs:
             z += class_gen(child, burn)
-        # logging.info('class_gen(pNode) return ' + str(z))
+        logging.info('class_gen(pNode) return ' + str(z))
         return z
     elif type(tree_obj) is xNode:
         # ['b'], ['', 'c', 'd', 'cc', 'cd', ...] -> ['b', 'bc' ,'bd', ...]
@@ -239,11 +240,12 @@ def class_gen(tree_obj, burn):
         # logging.info('z ' + str(z)) # <----
         for t in itertools.product(*z):
             y.append(''.join(t))
-        # logging.info('class_gen(xNode) return ' + str(y))
+        logging.info('class_gen(xNode) return ' + str(y))
         return y
 
     elif type(tree_obj) is str:
         # 'a' -> ['a']
+        logging.info('class_gen(leaf) return ' + tree_obj)
         return [tree_obj]
 
 
@@ -352,7 +354,7 @@ def gen_opt_gram(unc_chain, maxlen, tmp = ''):
 def gen_chains_from_gram(s_symb, maxlen):
     xg_res = set()
 
-    for _ in range(9999):
+    while True:
         to_proc = set()
         for e in gen_opt_gram(s_symb, maxlen):
             if not e:
@@ -488,7 +490,9 @@ class Application(Frame):
         tex = self.a1.get(1.0, 'end')
         proc_gram(tex)
         generated_chains_gram = gen_chains_from_gram(s, self.maxl.get())
+        
         self.lb1.delete(0, 'end')
+        self.gram_chains = []
 
         for x in [i for i in sorted(generated_chains_gram) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
             self.lb1.insert('end', x)
@@ -507,6 +511,7 @@ class Application(Frame):
         parsed_reg = pNode(tex)
         
         self.lb2.delete(0, 'end')
+        self.reg_chains = []
 
         final_chains = [i for i in set(class_gen(parsed_reg, self.maxl.get())) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]
         for x in sorted(final_chains):
@@ -524,6 +529,7 @@ class Application(Frame):
         parsed_reg = pNode(tex)
         
         self.lb3.delete(0, 'end')
+        self.ure_chains = []
 
         final_chains = [i for i in set(class_gen(parsed_reg, self.maxl.get())) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]
         for x in sorted(final_chains):
@@ -533,10 +539,10 @@ class Application(Frame):
 
     def b5(self):
         ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + \
-        'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + \
+        '\nРегулярное выржаение:\n' + self.a3.get(1.0, 'end') + \
         '\nЦепочки грамматики:\n' + '\n'.join(self.gram_chains) + \
-        '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains) + \
-        '\n\nЦепочки вашего регулярного выражения:\n' + '\n'.join(self.ure_chains)
+        '\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains) + \
+        '\nЦепочки вашего регулярного выражения:\n' + '\n'.join(self.ure_chains)
         file_dump(ox)
         logging.info('dump to file')
 
