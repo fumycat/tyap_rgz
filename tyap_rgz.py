@@ -1,7 +1,8 @@
 # λ
 from tkinter import Tk, Text, BOTH, W, N, E, S, Scrollbar, Listbox, IntVar, messagebox
 from tkinter.ttk import Frame, Button, Label, Style, Separator, Spinbox
-
+# from z import *
+from reg import *
 import re
 import os
 import copy
@@ -187,10 +188,13 @@ def remove_dead_prikoli():
 
 def solve_line(ak, av, meta_rules):
     logging.info('call solve_line ' + ak)
+    logging.info(repr(av))
     logging.info('meta ' + str(meta_rules))
 
     stars = []
     concs = []
+    conc_non = {k: [] for k in rules.keys()}
+
     for i in av:
         for mk, mv in meta_rules.items():
             if mk in i:
@@ -200,10 +204,22 @@ def solve_line(ak, av, meta_rules):
             logging.info('stars append ' + i.replace(ak, ''))
             stars.append(i.replace(ak, ''))
         else:
-            logging.info('concs append ' + i)
-            concs.append(i)
+            logging.info('solve_line big else ' + i) 
+            # concs.append(i)
+            if all(x in vt for x in i):
+                concs.append(i)
+                logging.info('solve_line one symb ' + i) 
+            else:
+                got_nt = list(filter(lambda x: x in vn, i))[0]
+                logging.info('got_nt ' + got_nt)
+                conc_non[got_nt].append(i.replace(got_nt, ''))
+                logging.info('conc_non ' + repr(conc_non[got_nt]))
 
-    logging.info('solve_line return ' + ''.join(stars) + '+'.join(concs))
+
+    logging.info('solve_line return ')
+    logging.info(repr(stars))
+    logging.info(repr(concs))
+    logging.info(repr(conc_non))
     logging.info('')
 
     rv = ''
@@ -212,7 +228,18 @@ def solve_line(ak, av, meta_rules):
     rv += ''.join('+'.join(stars))
     if len(stars) > 0:
         rv += ')*'
-    rv += '+'.join(concs)
+    
+    plust = []
+    for k, v in conc_non.items():
+        if len(v) == 0:
+            continue
+        elif len(v) > 1:
+            plust.append(k + '(' + '+'.join(v) + ')')
+        else:
+            plust.append(k + v[0])
+
+    rv += '+'.join(plust + concs)
+    logging.info('rv ' + rv)
     return rv
 
 
@@ -502,6 +529,42 @@ def gen_chains_from_gram(s_symb, maxlen):
         s_symb = to_proc
     return [x for x in xg_res if len(x) <= maxlen]
 
+def get_conc(string):
+    logging.info('get_conc call ' + str(string))
+    result = []
+    
+    p = 0
+    stack = ''
+    for i, c in enumerate(string[1]):
+        if p > 0:
+            if c == ')':
+                p -= 1
+                if p > 0:
+                    stack += c
+                else:
+                    ... # ?
+            elif c == '(':
+                p += 1
+                stack += c
+            else:
+                stack += c
+        else:
+            if c == '(':
+                p += 1
+            elif c == ')':
+                logging.error('invalid ) in get_conc')
+            elif c == '+':
+                result.append(('x', stack))
+                stack = ''
+            else:
+                stack += c
+
+    result.append(('x', stack))
+
+    logging.info('get_conc return ' + str(result))
+
+    return result
+
 
 def get_disc(string):
     logging.info('get_disc call ' + str(string))
@@ -513,27 +576,34 @@ def get_disc(string):
         if p > 0:
             if c == ')':
                 p -= 1
+                stack += c
+
                 if p == 0:
                     if i + 1 < len(string[1]) and string[1][i+1] == '*':
                         result.append(('*', stack))
                     else:
                         result.append(('+', stack))
                     stack = ''
+                else:
+                    ... # stack += c
             elif c == '(':
                 p += 1
+                stack += c
             else:
                 stack += c
         else:
             if c == '(':
                 p += 1
+                stack += c
             elif c == ')':
-                logging.error('get_disc invalid )')
+                logging.error('invalid ) in get_disc')
             elif c == '*':
                 pass
             else:
                 result.append(('+', c))
 
     logging.info('get_disc return ' + str(result))
+
     return result
 
 
@@ -547,7 +617,7 @@ def parse(string):
 
     tree = []
     if string[0] == '+':
-        tree = [('x', parse(('x', x))) for x in re.split('\+(?![^\(]*\))', string[1])]
+        tree = [('x', parse(('x', x))) for s, x in get_conc(string)]
     elif string[0] == 'x':
         tree = [(s, parse((s, x))) for s, x in get_disc(string)]
     elif string[0] == '*':
@@ -584,6 +654,7 @@ def build(regular, dim):
                     xts.append(e)
             if xts:
                 bts = xts
+            # bts = bts_ret(bts)
             # print("^-^ HERE", regular, bts)
             # always list tho?
 
@@ -608,13 +679,22 @@ def build(regular, dim):
         return regular[1]
 
 def generate(built, minlen, maxlen):
-    built = list(set(build(('+', built), (None, maxlen))))
+    logging.info('GEN ' + repr(built))
+    from pprint import pprint
+    pprint(built)
+    built = build(('+', built), (None, maxlen))
     logging.info('generate built ' + repr(built))
     if all(type(i) is str for i in built):
+        logging.info('1')
         built.sort()
-        return [x for x in built if len(x) >= minlen and len(x) <= maxlen]
+        return list(set([x for x in built if len(x) >= minlen and len(x) <= maxlen]))
     else:
-        return [x for x in soretd([''.join(z) for z in itertools.product(*built)]) if len(x) >= minlen and len(x) <= maxlen]
+        logging.info('2')
+        # return list(set(flatten([x for x in built if len(x) >= minlen and len(x) <= maxlen])))
+        logging.info(repr([''.join(z) for z in itertools.product(*built)]))
+        logging.info('here' + repr( [x for x in itertools.product(built[0], built[1])]))
+        # logging.info(repr())
+        return [x+y for x,y in itertools.product(built[0], built[1])] + list(set([x for x in sorted([''.join(z) for z in itertools.product(*built)] + list(flatten(built))) if len(x) >= minlen and len(x) <= maxlen]))
 
 
 # xd = parse_reg(out_of_names)
@@ -640,7 +720,7 @@ class Application(Frame):
         self.pack(fill=BOTH, expand=1)
 
         self.minl = IntVar(self.root, 0)
-        self.maxl = IntVar(self.root, 6)
+        self.maxl = IntVar(self.root, 5)
 
         self.l1 = Label(self.root, text="Введите грамматику")
         self.l1.place(x=5, y=5)
@@ -723,7 +803,9 @@ class Application(Frame):
         self.gram_chains = []
         self.reg_chains = []
 
-        with open('input.txt', encoding='utf-8') as f:
+        #with open('input_fixed0.txt', encoding='utf-8') as f:
+        #with open('input.txt', encoding='utf-8') as f:
+        with open('need_fix.txt', encoding='utf-8') as f:
             self.a1.insert(1.0, f.read()) # fline, *p = [x.strip() for x in f.readlines()]
 
         self.a3.configure(state='disabled')
@@ -755,8 +837,9 @@ class Application(Frame):
         # generated_reg_exp = gre[1:-1] if all(['(' in gre, ')' in gre, len(gre) > 3]) else gre
         
         generated_reg_exp = xy()
+        # generated_reg_exp = proc_ret(generated_reg_exp)
 
-        logging.info('reuslt generate_reg_exp ' + generated_reg_exp)
+        logging.info('reuslt generate_reg_exp ' + repr(generated_reg_exp))
         
         self.a3.configure(state='normal')
         self.a3.delete(1.0, 'end')
@@ -780,20 +863,18 @@ class Application(Frame):
     def b3(self):
         if self.maxl.get() < self.minl.get():
             return
+        
         tex = self.a3.get(1.0, 'end').strip()
+        
         if not tex or (len(tex) == 1 and tex not in vt):
             return
-        # xd = parse_reg(tex)
-        xd = parse(('+', tex))
-        logging.info('parsed reg ' + str(xd))
+ 
+        parsed_reg = pNode(tex)
+        
+        self.lb2.delete(0, 'end')
 
-        # generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
-        self.lb2.delete(0, 'end') # purge list
-
-        #for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
-        #    self.lb2.insert('end', x)
-        #    self.reg_chains.append(x)
-        for x in generate(xd, self.minl.get(), self.maxl.get()):
+        final_chains = [i for i in set(class_gen(parsed_reg, self.maxl.get())) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]
+        for x in sorted(final_chains):
             self.lb2.insert('end', x)
             self.reg_chains.append(x)
 
@@ -804,23 +885,22 @@ class Application(Frame):
         tex = self.a2.get(1.0, 'end').strip()
         if not tex or (len(tex) == 1 and tex not in vt):
             return
-        # xd = parse_reg(tex)
-        xd = parse(('+', tex)) 
-        logging.info('parsed reg ' + str(xd))
 
-        generated_chains = gen_chains_from_parsed_reg(xd, self.maxl.get())
+        parsed_reg = pNode(tex)
+        
         self.lb3.delete(0, 'end')
 
-        for x in generate(xd, self.minl.get(), self.maxl.get()):
+        final_chains = [i for i in set(class_gen(parsed_reg, self.maxl.get())) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]
+        for x in sorted(final_chains):
             self.lb3.insert('end', x)
 
-        #for x in [i for i in sorted(generated_chains) if len(i) <= self.maxl.get() and len(i) >= self.minl.get()]:
-        #    self.lb3.insert('end', x)
 
     def b5(self):
         ox = 'Исходная грамматика:\n' + self.a1.get(1.0, 'end') + 'Регулярное выржаение:\n' + self.a3.get(1.0, 'end') + '\nЦеопчки грамматики:\n' + '\n'.join(self.gram_chains) + '\n\nЦепочки регулярного выражения:\n' + '\n'.join(self.reg_chains)
         file_dump(ox)
         logging.info('dump to file')
+
+        logging.info(repr(sorted(self.reg_chains) == sorted(self.gram_chains)))
 
     def b6(self):
         messagebox.showinfo('О программе', 'Автор: Логинов В.С.\nГруппа: ИП-711\nВариант: 12. Регулярные выражения и грамматики')
