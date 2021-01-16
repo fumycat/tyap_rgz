@@ -201,7 +201,39 @@ def normal_output(node_obj, deep=0):
 
 
 def class_gen(tree_obj):
-    ...
+    logging.info('call class_gen ' + str(tree_obj))
+    if type(tree_obj) is sNode:
+        # ['c', 'd'] -> ['c', 'd', 'cd', 'dc', 'cc', 'dd', ...]
+        # ['ab'] -> ['ab', 'abab', ...]
+        z = []
+        for child in tree_obj.childs:
+            z += class_gen(child)
+        if len(z) == 1:
+            return list(itertools.repeat(z[0], 3))
+        else:
+            return ['', 'y', 'yy']
+    elif type(tree_obj) is pNode:
+        # ['a'], ['b', 'bc' ,'bd', ...], ['ef'] -> ['a', 'b', 'bc' ,'bd', ..., 'ef']
+        z = []
+        for child in tree_obj.childs:
+            z += class_gen(child)
+        logging.info('class_gen(pNode) return ' + str(z))
+        return z
+    elif type(tree_obj) is xNode:
+        # ['b'], ['', 'c', 'd', 'cc', 'cd', ...] -> ['b', 'bc' ,'bd', ...]
+        z = []
+        for child in tree_obj.childs:
+            z += class_gen(child)
+        y = []
+        logging.info('z ' + str(z)) # <----
+        for t in itertools.product(*z):
+            y.append(''.join(t))
+        logging.info('class_gen(xNode) return ' + str(y))
+        return y
+
+    elif type(tree_obj) is str:
+        # 'a' -> ['a']
+        return [tree_obj]
 
 
 def parse(string):
@@ -304,8 +336,10 @@ if __name__ == '__main__':
     logging.info(i_1)
     normal_output(i_1)
 
-    i_2 = pNode('((a+b+c)(a+b+c))*cc')
-    logging.info(i_2)
-    normal_output(i_2)
+    logging.info(str(class_gen(i_1)))
+
+    #i_2 = pNode('((a+b+c)(a+b+c))*cc')
+    #logging.info(i_2)
+    #normal_output(i_2)
 
 
