@@ -209,7 +209,10 @@ def class_gen(tree_obj, burn):
         for child in tree_obj.childs:
             z += class_gen(child, burn)
         if len(z) == 1:
-            return list(itertools.repeat(z[0], burn))
+            package = ['']
+            for i in range(burn + 1):
+                package += [z[0] * i]
+            return package
         else:
             # STRING FACTORY
             package = ['']
