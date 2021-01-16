@@ -123,6 +123,7 @@ def unp(string):
 
 class sNode(object):
     def __init__(self, string):
+        # logging.info('sNode ' + string)
         self.string = string
         self.string = unp(self.string)
         self.childs = []
@@ -133,11 +134,14 @@ class sNode(object):
 
     def parse(self):
         if any(x in self.string for x in ['+', '*', '(', ')']):
-            self.childs = [pNode(x) for x in get_conc(self.string)]
+            self.childs = [pNode(self.string)]
+        else:
+            self.childs = [self.string]
         
 
 class xNode(object):
     def __init__(self, string):
+        # logging.info('xNode ' + string)
         self.string = string
         self.string = unp(self.string)
         self.childs = []
@@ -157,10 +161,13 @@ class xNode(object):
                     self.childs.append(sNode(node))
                 else:
                     self.childs.append(pNode(node))
+        else:
+            self.childs = [self.string]
         
 
 class pNode(object):
     def __init__(self, string):
+        # logging.info('pNode ' + string)
         self.string = string
         self.string = unp(self.string)
         self.childs = []
@@ -172,11 +179,29 @@ class pNode(object):
     def parse(self):
         if any(x in self.string for x in ['+', '*', '(', ')']):
             self.childs = [xNode(x) for x in get_conc(self.string)]
+        else:
+            self.childs = [self.string]
 
 
+def normal_output(node_obj, deep=0):
+
+    def normal_t(x_obj):
+        if type(x_obj) is xNode:
+            return 'x'
+        elif type(x_obj) is pNode:
+            return '+'
+        elif type(x_obj) is sNode:
+            return '*'
+
+    for child in node_obj.childs:
+        if type(child) is str:
+            print('  ' * deep + normal_t(node_obj) + ' ' + child)
+        else:
+            normal_output(child, deep + 1)
 
 
-
+def class_gen(tree_obj):
+    ...
 
 
 def parse(string):
@@ -253,6 +278,7 @@ def build(regular, dim):
     else:
         return regular[1]
 
+
 def generate(built, minlen, maxlen):
     logging.info('GEN ' + repr(built))
     from pprint import pprint
@@ -271,12 +297,15 @@ def generate(built, minlen, maxlen):
         # logging.info(repr())
         # return [x+y for x,y in itertools.product(built[0], built[1])] + list(set([x for x in sorted([''.join(z) for z in itertools.product(*built)] + list(flatten(built))) if len(x) >= minlen and len(x) <= maxlen]))
 
+
 if __name__ == '__main__':
 
-    ix = pNode('a+b(c+d)*+ef')
-    logging.info(ix)
+    i_1 = pNode('a+b(c+d)*+ef')
+    logging.info(i_1)
+    normal_output(i_1)
 
-    logging.info('=TEST PARSE=')
-    logging.info(pNode('a+b(c+d)*+ef'))
-    logging.info(pNode('((a+b+c)(a+b+c))*cc'))
+    i_2 = pNode('((a+b+c)(a+b+c))*cc')
+    logging.info(i_2)
+    normal_output(i_2)
+
 
